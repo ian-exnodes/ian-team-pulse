@@ -37,10 +37,27 @@ export async function updateSession(request: NextRequest) {
   const { pathname } = request.nextUrl;
   const isPublic = pathname.startsWith("/login") || pathname.startsWith("/auth");
 
-  if (!data?.claims && !isPublic) {
-    const url = request.nextUrl.clone();
-    url.pathname = "/login";
-    return NextResponse.redirect(url);
+  if (!data?.claims) {
+    // Supabase's default magic-link email redirects to the Site URL with
+    // ?code=... - hand it to the callback route for the session exchange
+    // instead of bouncing the user (and the code) to /login.
+    const code = request.nextUrl.searchParams.get("code");
+    if (code && !pathname.startsWith("/auth")) {
+      const original = request.nextUrl.clone();
+      original.searchParams.delete("code");
+      const url = request.nextUrl.clone();
+      url.pathname = "/auth/callback";
+      url.search = "";
+      url.searchParams.set("code", code);
+      url.searchParams.set("next", original.pathname + original.search);
+      return NextResponse.redirect(url);
+    }
+
+    if (!isPublic) {
+      const url = request.nextUrl.clone();
+      url.pathname = "/login";
+      return NextResponse.redirect(url);
+    }
   }
 
   // Return the response updateSession built - creating a fresh NextResponse

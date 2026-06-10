@@ -35,17 +35,26 @@ Using the Supabase CLI instead? `supabase link --project-ref <ref>` then
 
 ## 3. Configure auth
 
-1. **Authentication → Sign In / Up → Email**: make sure the Email provider is
-   enabled (magic links are on by default; no password setup needed).
-2. **Authentication → Emails → Magic Link**: set the template's link to:
-
-   ```
-   {{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email
-   ```
-
-3. **Authentication → URL Configuration → Site URL**: set it to where the app
+1. **Authentication → Sign In / Up**: make sure the **Email** provider is
+   enabled (it is by default; magic links need no password setup).
+2. **Authentication → URL Configuration → Site URL**: set it to where the app
    runs — `http://localhost:3000` for development, your production URL when you
    deploy. **If you skip this, magic links will point at the wrong host.**
+3. (Recommended) **Authentication → URL Configuration → Redirect URLs**: add
+   `http://localhost:3000/auth/callback` (and the production equivalent later).
+
+That's it — the app works with Supabase's **default** "Magic link or OTP"
+email template out of the box (the sign-in link lands on `/auth/callback`,
+or on the Site URL where the app forwards it automatically).
+
+> **Email limits & templates.** New Supabase projects can't edit email
+> templates and are rate-limited to a handful of emails per hour until you
+> configure custom SMTP (Authentication → Emails → SMTP Settings, e.g. with
+> Resend). That's fine for trying the app out. For production, set up SMTP
+> and (optionally) point the Magic Link template at
+> `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` —
+> this also lets a link sent to your laptop be opened on your phone
+> (the default template's link only works in the browser that requested it).
 
 ## 4. Configure the app
 

@@ -30,6 +30,9 @@ export default function LoginPage() {
     const supabase = createClient();
     const { error: otpError } = await supabase.auth.signInWithOtp({
       email: trimmed,
+      // Used by the default email template's ConfirmationURL (when the URL is
+      // allowlisted in the dashboard); ignored by a custom token_hash template.
+      options: { emailRedirectTo: `${location.origin}/auth/callback` },
     });
     setSending(false);
 
