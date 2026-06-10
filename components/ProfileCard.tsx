@@ -38,7 +38,11 @@ export function ProfileCard({
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
   return (
-    <article className="flex flex-col gap-4 rounded-2xl bg-white p-5 shadow-sm">
+    <article
+      className={`flex flex-col gap-4 rounded-2xl bg-olivia-surface p-5 shadow-sm ${
+        isCurrentUser ? "ring-1 ring-olivia-pink/40" : ""
+      }`}
+    >
       <div className="flex items-center gap-3">
         {profile.avatar_url ? (
           // eslint-disable-next-line @next/next/no-img-element
@@ -48,38 +52,46 @@ export function ProfileCard({
             className="h-10 w-10 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-slate-200 text-sm font-semibold text-slate-600">
+          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-olivia-raised text-sm font-semibold text-olivia-pink">
             {initials(profile.display_name)}
           </div>
         )}
         <div className="min-w-0 flex-1">
-          <p className="truncate font-medium text-slate-900">
+          <p className="truncate font-medium text-olivia-cream">
             {profile.display_name}
+            {isCurrentUser && (
+              <span className="ml-1.5 text-xs text-olivia-muted">(you)</span>
+            )}
           </p>
         </div>
         <StatusBadge status={status} />
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-olivia-muted">
           Working on
         </h3>
-        <TaskList tasks={workingTasks} variant="working" onMarkDone={onMarkDone} />
+        {/* Only you can mark your own tasks done. */}
+        <TaskList
+          tasks={workingTasks}
+          variant="working"
+          onMarkDone={isCurrentUser ? onMarkDone : undefined}
+        />
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-slate-400">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-olivia-muted">
           Done today
         </h3>
         <TaskList tasks={doneTodayTasks} variant="doneToday" />
       </div>
 
       {isCurrentUser && (
-        <div className="space-y-3 border-t border-slate-100 pt-3">
+        <div className="space-y-3 border-t border-olivia-border pt-3">
           <QuickAddTask placeholder="What are you working on?" onAdd={onAddTask} />
           <button
             onClick={onToggleOff}
-            className="text-xs text-slate-500 underline-offset-2 hover:text-slate-800 hover:underline"
+            className="text-xs text-olivia-muted underline-offset-2 hover:text-olivia-pink hover:underline"
           >
             {profile.manual_status === "off" ? "I'm back" : "Set me as Off"}
           </button>

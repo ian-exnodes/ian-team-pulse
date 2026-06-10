@@ -2,6 +2,45 @@
 
 import { useEffect, useRef, useState } from "react";
 
+// Colorized rendering for one report line: link in pink, title in cream,
+// status muted (done gets the deeper pink). Copying still uses the plain
+// `text` string - colors are display-only.
+function ReportLine({ line }: { line: string }) {
+  const statusMatch = line.match(/ \( (done|inprogress) \)$/);
+  const status = statusMatch?.[1];
+  const head = statusMatch ? line.slice(0, -statusMatch[0].length) : line;
+
+  let link = "";
+  let title = head;
+  if (/^https?:\/\//.test(head)) {
+    const space = head.indexOf(" ");
+    if (space > 0) {
+      link = head.slice(0, space);
+      title = head.slice(space + 1);
+    } else {
+      link = head;
+      title = "";
+    }
+  }
+
+  return (
+    <div>
+      {link && <span className="text-olivia-pink">{link} </span>}
+      <span className="text-olivia-cream">{title}</span>
+      {status && (
+        <span
+          className={
+            status === "done" ? "text-olivia-pink-deep" : "text-olivia-muted"
+          }
+        >
+          {" "}
+          ( {status} )
+        </span>
+      )}
+    </div>
+  );
+}
+
 export function ReportModal({
   open,
   onClose,
@@ -49,37 +88,43 @@ export function ReportModal({
     }, 2000);
   }
 
+  const lines = text.replace(/\n$/, "").split("\n");
+
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/40 p-4"
-      onClick={onClose}
+      className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4"
+      onClick={handleClose}
     >
       <div
-        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl bg-white p-6 shadow-xl"
+        className="flex max-h-[80vh] w-full max-w-2xl flex-col rounded-2xl border border-olivia-border bg-olivia-surface p-6 shadow-xl"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold text-slate-900">
+          <h2 className="text-lg font-semibold text-olivia-cream">
             Current tasks report
           </h2>
           <button
-            onClick={onClose}
-            className="text-slate-400 hover:text-slate-700"
+            onClick={handleClose}
+            className="text-olivia-muted hover:text-olivia-cream"
             title="Close"
           >
             ✕
           </button>
         </div>
 
-        <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-lg bg-slate-50 p-4 font-mono text-xs text-slate-700">
-          {text || "No current tasks."}
+        <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-lg border border-olivia-border bg-olivia-bg p-4 font-mono text-xs leading-relaxed">
+          {text ? (
+            lines.map((line, i) => <ReportLine key={i} line={line} />)
+          ) : (
+            <span className="text-olivia-muted">No current tasks.</span>
+          )}
         </pre>
 
         <div className="mt-4 flex justify-end">
           <button
             onClick={copy}
             disabled={!text}
-            className="rounded-lg bg-slate-900 px-4 py-2 text-sm font-medium text-white hover:bg-slate-700 disabled:opacity-50"
+            className="rounded-lg bg-olivia-pink px-4 py-2 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep disabled:opacity-50"
           >
             {copied
               ? "Copied!"

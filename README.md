@@ -22,7 +22,10 @@ Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
 2. Paste the contents of [`supabase/migrations/0001_init.sql`](supabase/migrations/0001_init.sql)
    and run it. This creates the tables, triggers, row-level security, and
    realtime publication.
-3. (Optional but recommended for a first look) Paste and run
+3. Paste and run [`supabase/migrations/0002_per_user_permissions.sql`](supabase/migrations/0002_per_user_permissions.sql).
+   This tightens permissions: only you can change your own status and tasks;
+   the shared Todolist/TBD stay editable by everyone.
+4. (Optional but recommended for a first look) Paste and run
    [`supabase/seed.sql`](supabase/seed.sql) for 3 sample members with tasks,
    todos, and blockers.
    > The seed writes sample users into the `auth` schema, which is an
@@ -108,6 +111,13 @@ npm test
 
 Unit tests cover the pure logic: status derivation, the "done today" local-day
 filter, relative times, and the exact report format.
+
+## Notifications
+
+Click the bell in the header to enable browser notifications. While the tab
+is in the background you'll be notified when a teammate finishes a task or
+adds a team todo. Your own actions never notify you; the bell toggles mute
+once permission is granted.
 
 ## How status works
 

@@ -10,10 +10,11 @@ export function TaskList({
 }: {
   tasks: Task[];
   variant: "working" | "doneToday";
+  // Present only on your own card - others' tasks are read-only.
   onMarkDone?: (task: Task) => void;
 }) {
   if (tasks.length === 0) {
-    return <p className="text-sm text-slate-400">Nothing here</p>;
+    return <p className="text-sm text-olivia-muted/70">Nothing here</p>;
   }
 
   return (
@@ -21,19 +22,26 @@ export function TaskList({
       {tasks.map((task) => (
         <li key={task.id} className="flex items-start gap-2 text-sm">
           {variant === "working" ? (
-            <button
-              onClick={() => onMarkDone?.(task)}
-              title="Mark done"
-              className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-slate-300 hover:border-green-500 hover:bg-green-100"
-            />
+            onMarkDone ? (
+              <button
+                onClick={() => onMarkDone(task)}
+                title="Mark done"
+                className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-olivia-muted hover:border-olivia-pink hover:bg-olivia-pink/20"
+              />
+            ) : (
+              <span
+                aria-hidden
+                className="mx-1.25 mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-olivia-pink/60"
+              />
+            )
           ) : (
-            <span className="mt-0.5 text-green-600">✓</span>
+            <span className="mt-0.5 text-olivia-pink">✓</span>
           )}
           <span
             className={
               variant === "doneToday"
-                ? "text-slate-400 line-through"
-                : "text-slate-700"
+                ? "text-olivia-muted line-through"
+                : "text-olivia-cream"
             }
           >
             {task.title}

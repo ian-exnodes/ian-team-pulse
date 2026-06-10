@@ -6,7 +6,7 @@ export function LinkIcon({ href }: { href: string }) {
       rel="noreferrer"
       title={href}
       onClick={(e) => e.stopPropagation()}
-      className="inline-flex shrink-0 text-slate-400 hover:text-slate-700"
+      className="inline-flex shrink-0 text-olivia-muted hover:text-olivia-pink"
     >
       <svg
         width="14"

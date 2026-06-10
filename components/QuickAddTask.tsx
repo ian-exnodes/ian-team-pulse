@@ -27,18 +27,18 @@ export function QuickAddTask({
         value={title}
         onChange={(e) => setTitle(e.target.value)}
         placeholder={placeholder}
-        className="w-full rounded-lg border border-slate-200 px-2.5 py-1.5 text-sm text-slate-900 outline-none placeholder:text-slate-400 focus:border-slate-400"
+        className="w-full rounded-lg border border-olivia-border bg-olivia-raised px-2.5 py-1.5 text-sm text-olivia-cream outline-none placeholder:text-olivia-muted/70 focus:border-olivia-pink"
       />
       <div className="flex gap-1.5">
         <input
           value={link}
           onChange={(e) => setLink(e.target.value)}
           placeholder="Link (optional)"
-          className="min-w-0 flex-1 rounded-lg border border-slate-200 px-2.5 py-1.5 text-xs text-slate-600 outline-none placeholder:text-slate-400 focus:border-slate-400"
+          className="min-w-0 flex-1 rounded-lg border border-olivia-border bg-olivia-raised px-2.5 py-1.5 text-xs text-olivia-muted outline-none placeholder:text-olivia-muted/70 focus:border-olivia-pink"
         />
         <button
           type="submit"
-          className="rounded-lg bg-slate-900 px-3 py-1.5 text-xs font-medium text-white hover:bg-slate-700"
+          className="rounded-lg bg-olivia-pink px-3 py-1.5 text-xs font-medium text-olivia-bg hover:bg-olivia-pink-deep"
         >
           Add
         </button>

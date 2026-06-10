@@ -1,10 +1,24 @@
 "use client";
 
-import { useEffect, useMemo, useReducer, useRef, useState } from "react";
+import {
+  useEffect,
+  useMemo,
+  useReducer,
+  useRef,
+  useState,
+  useSyncExternalStore,
+} from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
 import { createClient } from "@/lib/supabase/client";
 import { buildReport } from "@/lib/report";
 import { isToday, recentTaskCutoffIso } from "@/lib/dates";
+import {
+  getNotifPermission,
+  getServerNotifPermission,
+  requestNotifPermission,
+  showNotification,
+  subscribeNotifPermission,
+} from "@/lib/notifications";
 import { useNow } from "@/lib/useNow";
 import type { Profile, Task, TeamItem } from "@/lib/types";
 import { Header } from "./Header";
@@ -98,10 +112,47 @@ export function Dashboard({
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const now = useNow();
 
+  // Mirror of the store for realtime handlers (they outlive renders).
+  const storeRef = useRef(store);
+  useEffect(() => {
+    storeRef.current = store;
+  }, [store]);
+
+  // --- Browser notifications. ---
+  const notifPerm = useSyncExternalStore(
+    subscribeNotifPermission,
+    getNotifPermission,
+    getServerNotifPermission
+  );
+  const [notifMuted, setNotifMuted] = useState(false);
+  const notifEnabled = notifPerm === "granted" && !notifMuted;
+  const notifEnabledRef = useRef(notifEnabled);
+  useEffect(() => {
+    notifEnabledRef.current = notifEnabled;
+  }, [notifEnabled]);
+
   function showToast(message: string) {
     if (toastTimer.current) clearTimeout(toastTimer.current);
     setToast(message);
     toastTimer.current = setTimeout(() => setToast(null), 4000);
+  }
+
+  function toggleNotifications() {
+    if (notifPerm === "ssr") return;
+    if (notifPerm === "unsupported") {
+      showToast("This browser doesn't support notifications");
+      return;
+    }
+    if (notifPerm === "default") {
+      void requestNotifPermission();
+      setNotifMuted(false);
+      return;
+    }
+    if (notifPerm === "denied") {
+      showToast("Notifications are blocked in your browser settings");
+      return;
+    }
+    setNotifMuted((m) => !m);
   }
 
   // --- Realtime: one channel, three table bindings, upsert-by-id deltas. ---
@@ -155,12 +206,44 @@ export function Dashboard({
       }
     }
 
+    // Notifications for teammates' activity. Skips your own actions and
+    // fires only when the tab is in the background (the dashboard already
+    // shows changes live when you're looking at it).
+    function maybeNotify(table: TableKey, payload: { eventType: string }, row: RowOf[TableKey]) {
+      if (!notifEnabledRef.current) return;
+      if (document.visibilityState === "visible") return;
+
+      if (table === "tasks" && payload.eventType === "UPDATE") {
+        const task = row as Task;
+        const prev = storeRef.current.tasks[task.id];
+        if (
+          prev &&
+          prev.status !== "done" &&
+          task.status === "done" &&
+          task.assignee_id !== currentUserId
+        ) {
+          const who =
+            storeRef.current.profiles[task.assignee_id]?.display_name ??
+            "A teammate";
+          showNotification("Task done 🎉", `${who}: ${task.title}`);
+        }
+      }
+
+      if (table === "teamItems" && payload.eventType === "INSERT") {
+        const item = row as TeamItem;
+        if (item.type === "todo" && item.created_by !== currentUserId) {
+          showNotification("New team todo", item.content);
+        }
+      }
+    }
+
     function makeHandler<K extends TableKey>(table: K) {
       return (payload: RealtimePostgresChangesPayload<RowOf[K]>) => {
         if (payload.eventType === "DELETE") {
           const id = (payload.old as { id?: string }).id;
           if (id) apply({ type: "remove", table, id });
         } else {
+          maybeNotify(table, payload, payload.new);
           apply({ type: "upsert", table, row: payload.new });
         }
       };
@@ -195,7 +278,7 @@ export function Dashboard({
     return () => {
       void supabase.removeChannel(channel);
     };
-  }, [supabase]);
+  }, [supabase, currentUserId]);
 
   // --- Optimistic mutations: client-generated UUIDs, rollback on error. ---
 
@@ -379,10 +462,18 @@ export function Dashboard({
   const currentProfile = store.profiles[currentUserId];
 
   return (
-    <div className="min-h-screen bg-slate-100">
+    <div className="min-h-screen bg-olivia-bg">
       <Header
         displayName={currentProfile?.display_name ?? "…"}
         onOpenReport={() => setReportOpen(true)}
+        notifState={
+          notifPerm === "ssr" || notifPerm === "unsupported"
+            ? "hidden"
+            : notifEnabled
+              ? "on"
+              : "off"
+        }
+        onToggleNotifications={toggleNotifications}
       />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 lg:flex-row">
@@ -442,7 +533,7 @@ export function Dashboard({
       <Toast message={toast} />
 
       {store.connection === "reconnecting" && (
-        <div className="fixed bottom-4 left-4 rounded-full bg-amber-100 px-3 py-1 text-xs font-medium text-amber-800 shadow">
+        <div className="fixed bottom-4 left-4 rounded-full border border-olivia-border bg-olivia-raised px-3 py-1 text-xs font-medium text-olivia-pink shadow">
           Reconnecting…
         </div>
       )}
