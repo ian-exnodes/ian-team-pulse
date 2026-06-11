@@ -881,8 +881,6 @@ export function Dashboard({
         avatarUrl={currentProfile?.avatar_url ?? null}
         onOpenProfile={() => setProfileOpen(true)}
         onOpenReport={() => setReportOpen(true)}
-        onOpenJira={() => setJiraOpen(true)}
-        showJira={jiraEnabled}
         notifState={
           notifPerm === "ssr" || notifPerm === "unsupported"
             ? "hidden"
@@ -935,6 +933,14 @@ export function Dashboard({
         </section>
 
         <aside className="flex w-full flex-col gap-6 lg:w-80 lg:shrink-0">
+          {jiraEnabled && (
+            <button
+              onClick={() => setJiraOpen(true)}
+              className="flex items-center justify-center gap-2 rounded-2xl border border-olivia-border bg-olivia-bg/40 px-4 py-2.5 text-sm font-medium text-olivia-cream hover:bg-olivia-raised"
+            >
+              <span className="text-olivia-pink">＋</span> Import from Jira
+            </button>
+          )}
           <TeamTodoList
             items={todoItems}
             onAdd={(content, link) => addTeamItem("todo", content, link)}
@@ -966,13 +972,13 @@ export function Dashboard({
         <ProfileEditModal
           profile={currentProfile}
           saving={profileSaving}
+          showJira={jiraEnabled}
           onClose={() => setProfileOpen(false)}
           onSave={(displayName, avatar) => void saveProfile(displayName, avatar)}
         />
       )}
-      {jiraEnabled && (
+      {jiraEnabled && jiraOpen && (
       <JiraImportModal
-        open={jiraOpen}
         onClose={() => setJiraOpen(false)}
         existingLinks={
           new Set(

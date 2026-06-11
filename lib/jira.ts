@@ -4,15 +4,26 @@
 
 export const JIRA_SCOPES = "read:jira-work read:me offline_access";
 
-// Open work assigned to the authorated user, most recently updated first.
-export const IMPORT_JQL =
-  "assignee = currentUser() AND statusCategory != Done ORDER BY updated DESC";
+// Search is restricted to these workflow statuses. NOTE: these must match the
+// status names in your Jira project exactly - adjust if your board differs.
+export const SEARCH_STATUSES = ["To Do", "Ready", "Blocked", "In Progress"];
+
+// Builds the JQL for the import search: always restricted to SEARCH_STATUSES,
+// optionally narrowed by a summary keyword (prefix match).
+export function buildSearchJql(keyword: string): string {
+  const statusClause = `status in (${SEARCH_STATUSES.map((s) => `"${s}"`).join(", ")})`;
+  const kw = keyword.trim();
+  if (!kw) return `${statusClause} ORDER BY updated DESC`;
+  const escaped = kw.replace(/[\\"]/g, "\\$&"); // safe inside a JQL string literal
+  return `${statusClause} AND summary ~ "${escaped}*" ORDER BY updated DESC`;
+}
 
 export interface JiraIssue {
   key: string;
   summary: string;
   url: string;
   status: string | null;
+  assignee: string | null;
 }
 
 // ---------- Pure helpers (unit-tested) ----------
@@ -37,7 +48,11 @@ export function isExpired(expiresAtIso: string, now: Date): boolean {
 
 type RawIssue = {
   key: string;
-  fields?: { summary?: string | null; status?: { name?: string | null } | null };
+  fields?: {
+    summary?: string | null;
+    status?: { name?: string | null } | null;
+    assignee?: { displayName?: string | null } | null;
+  };
 };
 
 export function mapIssue(raw: RawIssue, siteUrl: string): JiraIssue {
@@ -46,6 +61,7 @@ export function mapIssue(raw: RawIssue, siteUrl: string): JiraIssue {
     summary: raw.fields?.summary?.trim() || raw.key,
     url: jiraBrowseUrl(siteUrl, raw.key),
     status: raw.fields?.status?.name ?? null,
+    assignee: raw.fields?.assignee?.displayName ?? null,
   };
 }
 
@@ -136,12 +152,13 @@ export async function searchIssues(opts: {
   cloudId: string;
   accessToken: string;
   siteUrl: string;
+  keyword?: string;
   max?: number;
 }): Promise<JiraIssue[]> {
   const params = new URLSearchParams({
-    jql: IMPORT_JQL,
-    fields: "summary,status",
-    maxResults: String(opts.max ?? 50),
+    jql: buildSearchJql(opts.keyword ?? ""),
+    fields: "summary,status,assignee",
+    maxResults: String(opts.max ?? 30),
   });
   const res = await fetch(
     `${API_BASE}/ex/jira/${opts.cloudId}/rest/api/3/search/jql?${params.toString()}`,

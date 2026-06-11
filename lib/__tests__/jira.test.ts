@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   authorizeUrl,
+  buildSearchJql,
   isExpired,
   jiraBrowseUrl,
   jiraKeyFromUrl,
@@ -63,10 +64,17 @@ describe("isExpired", () => {
 });
 
 describe("mapIssue", () => {
-  it("maps summary, key, status, and browse URL", () => {
+  it("maps summary, key, status, assignee, and browse URL", () => {
     expect(
       mapIssue(
-        { key: "CPD-3481", fields: { summary: "Fix bug", status: { name: "In Progress" } } },
+        {
+          key: "CPD-3481",
+          fields: {
+            summary: "Fix bug",
+            status: { name: "In Progress" },
+            assignee: { displayName: "Ada Lovelace" },
+          },
+        },
         "https://acme.atlassian.net"
       )
     ).toEqual({
@@ -74,16 +82,36 @@ describe("mapIssue", () => {
       summary: "Fix bug",
       url: "https://acme.atlassian.net/browse/CPD-3481",
       status: "In Progress",
+      assignee: "Ada Lovelace",
     });
   });
 
-  it("falls back to the key when summary is missing", () => {
+  it("falls back to the key, and assignee is null when unassigned", () => {
     expect(mapIssue({ key: "CPD-9" }, "https://acme.atlassian.net")).toEqual({
       key: "CPD-9",
       summary: "CPD-9",
       url: "https://acme.atlassian.net/browse/CPD-9",
       status: null,
+      assignee: null,
     });
+  });
+});
+
+describe("buildSearchJql", () => {
+  it("restricts to the four workflow statuses with no keyword", () => {
+    expect(buildSearchJql("")).toBe(
+      'status in ("To Do", "Ready", "Blocked", "In Progress") ORDER BY updated DESC'
+    );
+  });
+
+  it("adds a summary prefix match for a keyword", () => {
+    expect(buildSearchJql("  login  ")).toBe(
+      'status in ("To Do", "Ready", "Blocked", "In Progress") AND summary ~ "login*" ORDER BY updated DESC'
+    );
+  });
+
+  it("escapes quotes and backslashes in the keyword", () => {
+    expect(buildSearchJql('a"b\\c')).toContain('summary ~ "a\\"b\\\\c*"');
   });
 });
 

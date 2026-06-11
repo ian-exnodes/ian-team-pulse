@@ -33,3 +33,28 @@
     }
   }
 }
+
+/* Slim, themed scrollbar for scrollable modal lists. A visible muted-grey
+   pill (the previous near-black thumb vanished against the dark panel),
+   brightening to pink on hover. Uses both the standard properties and the
+   WebKit pseudo-elements for cross-browser coverage. */
+.olivia-scroll {
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-olivia-muted) transparent;
+}
+.olivia-scroll::-webkit-scrollbar {
+  width: 10px;
+}
+.olivia-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.olivia-scroll::-webkit-scrollbar-thumb {
+  background-color: var(--color-olivia-muted);
+  border-radius: 9999px;
+  /* Border in the panel colour gives the pill inset padding. */
+  border: 3px solid var(--color-olivia-surface);
+  background-clip: padding-box;
+}
+.olivia-scroll:hover::-webkit-scrollbar-thumb {
+  background-color: var(--color-olivia-pink);
+}

@@ -5,8 +5,6 @@ export function Header({
   avatarUrl,
   onOpenProfile,
   onOpenReport,
-  onOpenJira,
-  showJira,
   notifState,
   onToggleNotifications,
 }: {
@@ -14,8 +12,6 @@ export function Header({
   avatarUrl: string | null;
   onOpenProfile: () => void;
   onOpenReport: () => void;
-  onOpenJira: () => void;
-  showJira: boolean;
   notifState: "on" | "off" | "hidden";
   onToggleNotifications: () => void;
 }) {
@@ -41,15 +37,6 @@ export function Header({
               }`}
             >
               {notifState === "on" ? "🔔" : "🔕"}
-            </button>
-          )}
-          {showJira && (
-            <button
-              onClick={onOpenJira}
-              title="Import issues from Jira"
-              className="rounded-lg border border-olivia-border px-3 py-1.5 text-sm text-olivia-muted hover:bg-olivia-raised hover:text-olivia-cream"
-            >
-              Jira
             </button>
           )}
           <button

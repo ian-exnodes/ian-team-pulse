@@ -7,66 +7,93 @@ interface JiraIssue {
   summary: string;
   url: string;
   status: string | null;
+  assignee: string | null;
 }
 
-type Load =
-  | { state: "loading" }
-  | { state: "disconnected" }
-  | { state: "connected"; issues: JiraIssue[] }
-  | { state: "error" };
+type Conn = "loading" | "disconnected" | "connected" | "error";
 
+// Mounted by the parent only while open. Lets you search your Jira (statuses
+// To Do / Ready / Blocked / In Progress, optional keyword) and import picks
+// onto your card. Tokens stay server-side; only the issue list comes back.
 export function JiraImportModal({
-  open,
   onClose,
   existingLinks,
   onImport,
 }: {
-  open: boolean;
   onClose: () => void;
   existingLinks: Set<string>;
   onImport: (issues: JiraIssue[]) => Promise<number>;
 }) {
-  const [load, setLoad] = useState<Load>({ state: "loading" });
+  const [conn, setConn] = useState<Conn>("loading");
+  const [issues, setIssues] = useState<JiraIssue[]>([]);
+  const [searching, setSearching] = useState(false);
+  const [searchFailed, setSearchFailed] = useState(false);
+  const [query, setQuery] = useState("");
   const [selected, setSelected] = useState<Set<string>>(new Set());
   const [importing, setImporting] = useState(false);
 
-  const fetchIssues = useCallback(async () => {
-    setLoad({ state: "loading" });
-    setSelected(new Set());
+  // Resolve connection state on open WITHOUT searching - the Jira search only
+  // runs once the user actually types a keyword.
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/jira/status");
+        const data = await res.json();
+        if (active) setConn(data.connected ? "connected" : "disconnected");
+      } catch {
+        if (active) setConn("error");
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, []);
+
+  const runSearch = useCallback(async (q: string) => {
+    setSearchFailed(false);
     try {
-      const res = await fetch("/api/jira/issues");
+      const res = await fetch(`/api/jira/issues?q=${encodeURIComponent(q)}`);
       if (!res.ok) {
-        setLoad({ state: "error" });
+        setConn("error");
         return;
       }
       const data = await res.json();
-      setLoad(
-        data.connected
-          ? { state: "connected", issues: data.issues as JiraIssue[] }
-          : { state: "disconnected" }
-      );
+      if (!data.connected) {
+        setConn("disconnected");
+        return;
+      }
+      setIssues((data.issues ?? []) as JiraIssue[]);
+      setSearchFailed(Boolean(data.error));
     } catch {
-      setLoad({ state: "error" });
+      setConn("error");
+    } finally {
+      setSearching(false);
     }
   }, []);
 
+  // Debounced search - only fires when there's a keyword.
   useEffect(() => {
-    if (!open) return;
-    // Deferred so the synchronous "loading" state isn't set in the effect body.
-    const id = setTimeout(() => void fetchIssues(), 0);
+    const q = query.trim();
+    if (!q) return;
+    const id = setTimeout(() => void runSearch(q), 350);
     return () => clearTimeout(id);
-  }, [open, fetchIssues]);
+  }, [query, runSearch]);
+
+  // `searching` is set on keystroke (below) so the spinner shows during the
+  // debounce window, not just after the request starts.
+  function onQueryChange(value: string) {
+    setQuery(value);
+    setSearching(value.trim().length > 0);
+  }
 
   useEffect(() => {
-    if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  });
-
-  if (!open) return null;
+  }, [onClose]);
 
   function toggle(url: string) {
     setSelected((prev) => {
@@ -77,14 +104,8 @@ export function JiraImportModal({
     });
   }
 
-  async function disconnect() {
-    await fetch("/api/jira/disconnect", { method: "POST" });
-    setLoad({ state: "disconnected" });
-  }
-
   async function doImport() {
-    if (load.state !== "connected") return;
-    const chosen = load.issues.filter((i) => selected.has(i.url));
+    const chosen = issues.filter((i) => selected.has(i.url));
     if (chosen.length === 0) return;
     setImporting(true);
     await onImport(chosen);
@@ -114,28 +135,16 @@ export function JiraImportModal({
           </button>
         </div>
 
-        {load.state === "loading" && (
+        {conn === "loading" && (
           <p className="text-sm text-olivia-muted">Loading…</p>
         )}
 
-        {load.state === "error" && (
-          <div className="space-y-3">
-            <p className="text-sm text-red-300">
-              Couldn&apos;t reach Jira. Try reconnecting.
-            </p>
-            <a
-              href="/api/jira/connect"
-              className="inline-block rounded-lg bg-olivia-pink px-4 py-2 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep"
-            >
-              Connect Jira
-            </a>
-          </div>
-        )}
-
-        {load.state === "disconnected" && (
+        {(conn === "error" || conn === "disconnected") && (
           <div className="space-y-3">
             <p className="text-sm text-olivia-muted">
-              Connect your Jira account to pull your open issues onto the board.
+              {conn === "error"
+                ? "Couldn't reach Jira. Try reconnecting."
+                : "Connect your Jira account to search and import issues."}
             </p>
             <a
               href="/api/jira/connect"
@@ -146,59 +155,83 @@ export function JiraImportModal({
           </div>
         )}
 
-        {load.state === "connected" && (
+        {conn === "connected" && (
           <>
-            {load.issues.length === 0 ? (
-              <p className="text-sm text-olivia-muted">
-                No open issues assigned to you in Jira.
-              </p>
-            ) : (
-              <ul className="flex-1 space-y-1.5 overflow-auto">
-                {load.issues.map((issue) => {
-                  const already = existingLinks.has(issue.url);
-                  return (
-                    <li key={issue.key}>
-                      <label
-                        className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm ${
-                          already
-                            ? "opacity-50"
-                            : "cursor-pointer hover:bg-olivia-raised"
-                        }`}
-                      >
-                        <input
-                          type="checkbox"
-                          disabled={already}
-                          checked={already || selected.has(issue.url)}
-                          onChange={() => toggle(issue.url)}
-                          className="mt-0.5 h-4 w-4 shrink-0 accent-status-active"
-                        />
-                        <span className="min-w-0 flex-1">
-                          <span className="font-mono text-xs text-olivia-pink">
-                            {issue.key}
-                          </span>{" "}
-                          <span className="text-olivia-cream">
-                            {issue.summary}
-                          </span>
-                          {already && (
-                            <span className="ml-1 text-xs text-olivia-muted">
-                              (on board)
-                            </span>
-                          )}
-                        </span>
-                      </label>
-                    </li>
-                  );
-                })}
-              </ul>
-            )}
+            <input
+              autoFocus
+              value={query}
+              onChange={(e) => onQueryChange(e.target.value)}
+              placeholder="Search issues by keyword…"
+              className="mb-1 w-full rounded-lg border border-olivia-border bg-olivia-raised px-3 py-2 text-sm text-olivia-cream outline-none placeholder:text-olivia-muted/70 focus:border-olivia-pink"
+            />
+            <p className="mb-3 text-xs text-olivia-muted">
+              To Do · Ready · Blocked · In Progress
+            </p>
 
-            <div className="mt-4 flex items-center justify-between">
-              <button
-                onClick={disconnect}
-                className="text-xs text-olivia-muted underline-offset-2 hover:text-olivia-cream hover:underline"
-              >
-                Disconnect Jira
-              </button>
+            <div className="olivia-scroll -mr-3 flex-1 overflow-y-auto pr-3">
+              {query.trim() === "" ? (
+                <p className="text-sm text-olivia-muted">
+                  Type a keyword to search your Jira issues.
+                </p>
+              ) : searching ? (
+                <p className="text-sm text-olivia-muted">Searching…</p>
+              ) : searchFailed ? (
+                <p className="text-sm text-red-300">
+                  Couldn&apos;t search — your Jira may use different status
+                  names than To Do / Ready / Blocked / In Progress.
+                </p>
+              ) : issues.length === 0 ? (
+                <p className="text-sm text-olivia-muted">No matching issues.</p>
+              ) : (
+                <ul className="space-y-1.5">
+                  {issues.map((issue) => {
+                    const already = existingLinks.has(issue.url);
+                    return (
+                      <li key={issue.key}>
+                        <label
+                          className={`flex items-start gap-2 rounded-lg px-2 py-1.5 text-sm ${
+                            already
+                              ? "opacity-50"
+                              : "cursor-pointer hover:bg-olivia-raised"
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            disabled={already}
+                            checked={already || selected.has(issue.url)}
+                            onChange={() => toggle(issue.url)}
+                            className="mt-0.5 h-4 w-4 shrink-0 accent-status-active"
+                          />
+                          <span className="min-w-0 flex-1">
+                            <span>
+                              <span className="font-mono text-xs text-olivia-pink">
+                                {issue.key}
+                              </span>{" "}
+                              <span className="text-olivia-cream">
+                                {issue.summary}
+                              </span>
+                              {already && (
+                                <span className="ml-1 text-xs text-olivia-muted">
+                                  (on board)
+                                </span>
+                              )}
+                            </span>
+                            <span className="mt-0.5 block text-xs text-olivia-muted">
+                              {issue.status ?? "—"} ·{" "}
+                              <span className="font-medium text-olivia-pink">
+                                {issue.assignee ?? "Unassigned"}
+                              </span>
+                            </span>
+                          </span>
+                        </label>
+                      </li>
+                    );
+                  })}
+                </ul>
+              )}
+            </div>
+
+            <div className="mt-4 flex justify-end">
               <button
                 onClick={doImport}
                 disabled={importing || selected.size === 0}

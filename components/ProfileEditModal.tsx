@@ -16,14 +16,21 @@ function initials(name: string): string {
 // Edit your own avatar + display name. Nothing uploads until Save;
 // the preview shows the prepared blob (GIFs animate).
 // Parent mounts this component only while the modal is open.
+type JiraState =
+  | { state: "loading" }
+  | { state: "connected"; site: string | null }
+  | { state: "disconnected" };
+
 export function ProfileEditModal({
   profile,
   saving,
+  showJira,
   onClose,
   onSave,
 }: {
   profile: Profile;
   saving: boolean;
+  showJira: boolean;
   onClose: () => void;
   onSave: (displayName: string, avatar: PreparedAvatar | null) => void;
 }) {
@@ -31,7 +38,37 @@ export function ProfileEditModal({
   const [avatar, setAvatar] = useState<PreparedAvatar | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [jira, setJira] = useState<JiraState>({ state: "loading" });
   const fileInput = useRef<HTMLInputElement>(null);
+
+  // Load the Jira connection state when the modal opens (DB-only check).
+  useEffect(() => {
+    if (!showJira) return;
+    let active = true;
+    (async () => {
+      try {
+        const res = await fetch("/api/jira/status");
+        const data = await res.json();
+        if (active)
+          setJira(
+            data.connected
+              ? { state: "connected", site: data.siteUrl ?? null }
+              : { state: "disconnected" }
+          );
+      } catch {
+        if (active) setJira({ state: "disconnected" });
+      }
+    })();
+    return () => {
+      active = false;
+    };
+  }, [showJira]);
+
+  async function disconnectJira() {
+    setJira({ state: "loading" });
+    await fetch("/api/jira/disconnect", { method: "POST" });
+    setJira({ state: "disconnected" });
+  }
 
   // Revoke the preview object URL when the modal unmounts; the flag also
   // stops a still-resolving pickFile from creating a URL nothing will revoke.
@@ -142,6 +179,46 @@ export function ProfileEditModal({
           <p className="text-xs text-red-400">Name must be 1–80 characters.</p>
         )}
         {error && <p className="text-xs text-red-400">{error}</p>}
+
+        {showJira && (
+          <div className="mt-5 border-t border-olivia-border pt-4">
+            <p className="mb-2 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
+              Jira
+            </p>
+            {jira.state === "loading" && (
+              <p className="text-sm text-olivia-muted">Checking…</p>
+            )}
+            {jira.state === "connected" && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="min-w-0 text-sm text-olivia-cream">
+                  <span className="text-status-active">●</span> Connected
+                  {jira.site && (
+                    <span className="block truncate text-xs text-olivia-muted">
+                      {jira.site.replace(/^https?:\/\//, "")}
+                    </span>
+                  )}
+                </span>
+                <button
+                  onClick={() => void disconnectJira()}
+                  className="shrink-0 rounded-lg border border-olivia-border px-3 py-1.5 text-xs text-olivia-muted hover:bg-olivia-raised hover:text-olivia-cream"
+                >
+                  Disconnect
+                </button>
+              </div>
+            )}
+            {jira.state === "disconnected" && (
+              <div className="flex items-center justify-between gap-2">
+                <span className="text-sm text-olivia-muted">Not connected</span>
+                <a
+                  href="/api/jira/connect"
+                  className="shrink-0 rounded-lg bg-olivia-pink px-3 py-1.5 text-xs font-medium text-olivia-bg hover:bg-olivia-pink-deep"
+                >
+                  Connect Jira
+                </a>
+              </div>
+            )}
+          </div>
+        )}
 
         <div className="mt-4 flex justify-end gap-2">
           <button
