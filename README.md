@@ -188,7 +188,14 @@ Each teammate can connect their own Jira account and pull their open issues
 onto their card. The issue summary becomes the task title and the Jira link
 goes in the task's link — no retyping.
 
-**Setup (one-time):**
+> **Off by default.** The Jira button is hidden unless
+> `NEXT_PUBLIC_JIRA_ENABLED=true` is set (so the feature stays dormant in
+> production until you opt in). Set it in `.env.local` to develop locally.
+> Note: importing a client's Jira data into this app may need their sign-off
+> and their Atlassian org may restrict third-party OAuth apps — confirm before
+> enabling it for shared/client boards.
+
+**Setup (one-time), once you enable it:**
 
 1. **Register an OAuth 2.0 (3LO) app** at
    [developer.atlassian.com](https://developer.atlassian.com) → your app →

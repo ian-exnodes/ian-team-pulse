@@ -737,6 +737,10 @@ export function Dashboard({
 
   const currentProfile = store.profiles[currentUserId];
 
+  // Jira import is off by default; enable per-environment with
+  // NEXT_PUBLIC_JIRA_ENABLED=true (kept local until we decide on it).
+  const jiraEnabled = process.env.NEXT_PUBLIC_JIRA_ENABLED === "true";
+
   // --- Drag and drop. ---
   // Distance constraint so a click on the handle isn't read as a drag.
   const sensors = useSensors(
@@ -785,6 +789,7 @@ export function Dashboard({
         displayName={currentProfile?.display_name ?? "…"}
         onOpenReport={() => setReportOpen(true)}
         onOpenJira={() => setJiraOpen(true)}
+        showJira={jiraEnabled}
         notifState={
           notifPerm === "ssr" || notifPerm === "unsupported"
             ? "hidden"
@@ -857,6 +862,7 @@ export function Dashboard({
         onClose={() => setReportOpen(false)}
         text={reportText}
       />
+      {jiraEnabled && (
       <JiraImportModal
         open={jiraOpen}
         onClose={() => setJiraOpen(false)}
@@ -873,6 +879,7 @@ export function Dashboard({
           return n;
         }}
       />
+      )}
       <Toast message={toast} />
 
       {store.connection === "reconnecting" && (
