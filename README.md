@@ -123,6 +123,57 @@ npm test
 Unit tests cover the pure logic: status derivation, the "done today" local-day
 filter, relative times, and the exact report format.
 
+## Deploying to production (Vercel + Supabase)
+
+The app is a standard Next.js project and deploys to Vercel with no extra
+config. Node is pinned to 24.x via `engines` in `package.json` (Next.js 16
+requires Node ≥ 20.9).
+
+### 1. Deploy to Vercel
+
+1. Push to GitHub (already done if you cloned this), then in
+   [vercel.com](https://vercel.com) **Add New → Project** and import the repo.
+   Vercel auto-detects Next.js — leave Build/Install/Output at the defaults.
+2. Under **Environment Variables**, add (Production scope):
+   - `NEXT_PUBLIC_SUPABASE_URL`
+   - `NEXT_PUBLIC_SUPABASE_ANON_KEY`
+   - `NEXT_PUBLIC_ALLOWED_EMAIL_DOMAIN` (only if restricting signups)
+
+   `NEXT_PUBLIC_*` vars are baked into the browser bundle **at build time** —
+   changing one later needs a redeploy.
+3. Deploy. You'll get a URL like `https://your-app.vercel.app`.
+
+### 2. Point Supabase at the production URL
+
+In the Supabase dashboard → **Authentication → URL Configuration**:
+
+- **Site URL** → `https://your-app.vercel.app` (used to build the links in
+  confirmation / password-reset emails).
+- **Redirect URLs** → add `https://your-app.vercel.app/auth/callback` and
+  `https://your-app.vercel.app/auth/reset`. Keep the `localhost:3000` entries
+  for local dev. For Vercel preview deploys, optionally add a wildcard like
+  `https://*-<your-team>.vercel.app/**`.
+
+### 3. Custom SMTP so emails aren't rate-limited
+
+The built-in email service caps at a handful of emails/hour — fine for testing,
+not for a real team. Point Supabase at [Resend](https://resend.com) (free tier:
+100/day, 3,000/month):
+
+1. In Resend: verify a sending **domain** (production) — or use
+   `onboarding@resend.dev` for testing only — and create an API key with Sending
+   permission.
+2. Supabase → **Authentication → Emails → SMTP Settings → Enable custom SMTP**:
+   - Host `smtp.resend.com`, Port `465`, Username `resend`, Password = your
+     Resend API key (`re_…`).
+   - Sender email = an address on your verified domain; set a sender name.
+3. Supabase → **Authentication → Rate Limits**: raise "Rate limit for sending
+   emails" (custom SMTP defaults to 30/hour) to match your team.
+
+With password auth, only signup confirmations and password resets send email,
+so even modest limits are rarely hit — but custom SMTP makes it reliable and
+lets you edit the email templates.
+
 ## Assigning work (drag and drop)
 
 Grab the grip handle on any in-progress task or Team Todolist item and drop it
