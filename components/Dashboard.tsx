@@ -263,6 +263,11 @@ export function Dashboard({
         // Record before any gating, so the map stays accurate even while
         // the tab is visible or notifications are muted.
         taskStatuses.set(task.id, task.status);
+        // When a task leaves you, forget its assignment notification so a
+        // later re-assignment back to you notifies again.
+        if (task.assignee_id !== currentUserId) {
+          notified.delete(`task-assigned:${task.id}`);
+        }
         if (!canNotify()) return;
         // A teammate completed a task assigned to someone else.
         if (
@@ -279,7 +284,12 @@ export function Dashboard({
         if (task.assignee_id === currentUserId) {
           const wasMine =
             payload.eventType === "UPDATE" && prevAssignee === currentUserId;
-          const iCreatedIt = task.created_by === currentUserId;
+          // created_by only suppresses your OWN insert echo (quick-add or a
+          // todo you converted to yourself). On reassignment it must not
+          // suppress: a task you originally created can be assigned back to
+          // you by someone else, and that should notify.
+          const iCreatedIt =
+            payload.eventType === "INSERT" && task.created_by === currentUserId;
           if (!wasMine && !iCreatedIt) {
             notifyAssigned(task);
           }
@@ -316,11 +326,12 @@ export function Dashboard({
           ) {
             notifyTaskDone(task);
           }
-          // Assigned to me while the socket was down.
+          // Assigned to me while the socket was down. No INSERT echo here
+          // (rows come from a fetch), so no created_by suppression needed -
+          // you can't assign work to yourself while offline.
           if (
             task.assignee_id === currentUserId &&
-            prev?.assignee_id !== currentUserId &&
-            task.created_by !== currentUserId
+            prev?.assignee_id !== currentUserId
           ) {
             notifyAssigned(task);
           }
@@ -584,8 +595,16 @@ export function Dashboard({
       })
       .select("id");
     if (error || !data?.length) {
+      // Nothing was assigned: drop the optimistic task and restore the todo,
+      // but only if nothing else (a realtime event) has touched the slot.
       dispatch({ type: "remove", table: "tasks", id: taskId });
-      dispatch({ type: "upsert", table: "teamItems", row: item });
+      dispatch({
+        type: "rollback",
+        table: "teamItems",
+        id: item.id,
+        ifCurrentIs: undefined,
+        row: item,
+      });
       showToast("Couldn't assign todo — try again");
       return;
     }
@@ -595,9 +614,11 @@ export function Dashboard({
       .delete()
       .eq("id", item.id);
     if (delError) {
-      // Task was created; restore the todo to match the DB (both now exist).
-      dispatch({ type: "upsert", table: "teamItems", row: item });
-      showToast("Assigned, but couldn't remove the todo — dismiss it manually");
+      // The task was created but the todo couldn't be removed. Leave it
+      // removed locally (so it can't be re-dragged into a duplicate task);
+      // it still exists in the DB and the next reconnect-hydrate re-surfaces
+      // it for manual dismissal.
+      showToast("Assigned — the leftover todo will reappear on refresh");
     }
   }
 
