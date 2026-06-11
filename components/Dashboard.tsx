@@ -32,7 +32,9 @@ import {
   subscribeNotifPermission,
 } from "@/lib/notifications";
 import { useNow } from "@/lib/useNow";
+import type { ActivityRow } from "@/lib/activity";
 import type { Profile, Task, TeamItem } from "@/lib/types";
+import { ActivityLog } from "./ActivityLog";
 import { Header } from "./Header";
 import { JiraImportModal } from "./JiraImportModal";
 import { ProfileEditModal } from "./ProfileEditModal";
@@ -108,11 +110,13 @@ export function Dashboard({
   initialProfiles,
   initialTasks,
   initialTeamItems,
+  initialActivity,
   currentUserId,
 }: {
   initialProfiles: Profile[];
   initialTasks: Task[];
   initialTeamItems: TeamItem[];
+  initialActivity: ActivityRow[];
   currentUserId: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -122,6 +126,7 @@ export function Dashboard({
     teamItems: toMap(initialTeamItems),
     connection: "connecting" as ConnectionState,
   }));
+  const [activity, setActivity] = useState<ActivityRow[]>(initialActivity);
   const [reportOpen, setReportOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
@@ -213,13 +218,18 @@ export function Dashboard({
       buffer = []; // safe: discarded events predate the new fetch's snapshot
       try {
         const cutoff = recentTaskCutoffIso();
-        const [p, t, i] = await Promise.all([
+        const [p, t, i, a] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase
             .from("tasks")
             .select("*")
             .or(`status.eq.inprogress,completed_at.gte.${cutoff}`),
           supabase.from("team_items").select("*"),
+          supabase
+            .from("activity_log")
+            .select("*")
+            .order("created_at", { ascending: false })
+            .limit(50),
         ]);
         if (p.error || t.error || i.error) {
           throw p.error ?? t.error ?? i.error;
@@ -232,6 +242,7 @@ export function Dashboard({
           tasks: t.data,
           teamItems: i.data,
         });
+        if (a.data) setActivity(a.data as ActivityRow[]);
         dispatch({ type: "connection", value: "live" });
       } catch {
         // Keep current state; events still apply and the next rejoin retries.
@@ -406,6 +417,18 @@ export function Dashboard({
         "postgres_changes",
         { event: "*", schema: "public", table: "team_items" },
         makeHandler("teamItems")
+      )
+      .on(
+        "postgres_changes",
+        { event: "INSERT", schema: "public", table: "activity_log" },
+        (payload) => {
+          const row = payload.new as ActivityRow;
+          setActivity((prev) =>
+            prev.some((x) => x.id === row.id)
+              ? prev
+              : [row, ...prev].slice(0, 100)
+          );
+        }
       )
       .subscribe((status) => {
         if (status === "SUBSCRIBED") {
@@ -828,6 +851,15 @@ export function Dashboard({
 
   const currentProfile = store.profiles[currentUserId];
 
+  // id -> display name, for rendering activity log sentences.
+  const namesById = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(store.profiles).map((p) => [p.id, p.display_name])
+      ),
+    [store.profiles]
+  );
+
   // Jira import is off by default; enable per-environment with
   // NEXT_PUBLIC_JIRA_ENABLED=true (kept local until we decide on it).
   const jiraEnabled = process.env.NEXT_PUBLIC_JIRA_ENABLED === "true";
@@ -956,6 +988,13 @@ export function Dashboard({
           />
         </aside>
       </main>
+
+      <ActivityLog
+        activity={activity}
+        currentUserId={currentUserId}
+        namesById={namesById}
+        now={now}
+      />
 
       <ReportModal
         open={reportOpen}

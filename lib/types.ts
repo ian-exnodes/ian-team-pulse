@@ -135,6 +135,39 @@ export interface Database {
         };
         Relationships: [];
       };
+      activity_log: {
+        Row: {
+          id: string;
+          actor_id: string | null;
+          type: string;
+          target_user_id: string | null;
+          entity_id: string | null;
+          detail: string | null;
+          meta: Record<string, unknown> | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          actor_id?: string | null;
+          type: string;
+          target_user_id?: string | null;
+          entity_id?: string | null;
+          detail?: string | null;
+          meta?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          actor_id?: string | null;
+          type?: string;
+          target_user_id?: string | null;
+          entity_id?: string | null;
+          detail?: string | null;
+          meta?: Record<string, unknown> | null;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;
