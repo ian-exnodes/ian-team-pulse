@@ -70,14 +70,16 @@ export function renderActivity(
         : [actor, t(" added a new task: "), d(detail)];
     case "task_assigned":
       return [actor, t(" assigned "), d(detail), t(" to "), target];
+    // The colored chip already states the status, so these no longer repeat
+    // it as a trailing word.
     case "task_done":
-      return [actor, t(" marked "), d(detail), t(" done")];
+      return [actor, t(" completed "), d(detail)];
     case "task_reopened":
       return [actor, t(" reopened "), d(detail)];
     case "status_off":
-      return [actor, t(actorIsYou ? " set yourself Off" : " set themselves Off")];
+      return [actor, t(" stepped away")];
     case "status_back":
-      return [actor, t(actorIsYou ? "'re back" : " is back")];
+      return [actor, t(" returned")];
     case "todo_added":
       return [actor, t(" added a team todo: "), d(detail)];
     case "todo_checked":

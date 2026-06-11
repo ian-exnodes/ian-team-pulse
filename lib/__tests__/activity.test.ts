@@ -69,21 +69,21 @@ describe("renderActivity", () => {
     ).toBe("You added a task for Chi: Fix bug");
   });
 
-  it("phrases status changes reflexively", () => {
+  it("phrases status changes without repeating the badge word", () => {
     expect(
       text(renderActivity(row({ type: "status_off", actor_id: "me", detail: null }), "me", NAMES))
-    ).toBe("You set yourself Off");
+    ).toBe("You stepped away");
     expect(
       text(renderActivity(row({ type: "status_back", actor_id: "henry", detail: null }), "me", NAMES))
-    ).toBe("Henry is back");
+    ).toBe("Henry returned");
     expect(
       text(renderActivity(row({ type: "status_back", actor_id: "me", detail: null }), "me", NAMES))
-    ).toBe("You're back");
+    ).toBe("You returned");
   });
 
   it("covers done, todo and blocker phrasings", () => {
     expect(text(renderActivity(row({ type: "task_done", actor_id: "me" }), "me", NAMES))).toBe(
-      "You marked Fix bug done"
+      "You completed Fix bug"
     );
     expect(
       text(renderActivity(row({ type: "todo_checked", actor_id: "chi", detail: "Book room" }), "me", NAMES))
