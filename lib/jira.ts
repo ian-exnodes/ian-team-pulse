@@ -21,6 +21,15 @@ export function jiraBrowseUrl(siteUrl: string, key: string): string {
   return `${siteUrl.replace(/\/+$/, "")}/browse/${key}`;
 }
 
+// The reverse: pull the issue key out of a link if it is a Jira browse
+// URL (any site), so task rows can show "[CPD-3384]" before the title.
+export function jiraKeyFromUrl(link: string | null): string | null {
+  if (!link) return null;
+  const match =
+    /^https?:\/\/[^/\s]+\/browse\/([A-Z][A-Z0-9_]*-\d+)(?:[?#]|$)/.exec(link);
+  return match?.[1] ?? null;
+}
+
 // Treat a token as expired a minute early so a request never races the clock.
 export function isExpired(expiresAtIso: string, now: Date): boolean {
   return new Date(expiresAtIso).getTime() - 60_000 <= now.getTime();

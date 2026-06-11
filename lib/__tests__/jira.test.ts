@@ -1,5 +1,36 @@
 import { describe, expect, it } from "vitest";
-import { authorizeUrl, isExpired, jiraBrowseUrl, mapIssue } from "../jira";
+import {
+  authorizeUrl,
+  isExpired,
+  jiraBrowseUrl,
+  jiraKeyFromUrl,
+  mapIssue,
+} from "../jira";
+
+describe("jiraKeyFromUrl", () => {
+  it("extracts the issue key from a browse URL", () => {
+    expect(
+      jiraKeyFromUrl("https://careforkids.atlassian.net/browse/CPD-3384")
+    ).toBe("CPD-3384");
+  });
+
+  it("ignores query strings and fragments", () => {
+    expect(
+      jiraKeyFromUrl("https://acme.atlassian.net/browse/AB2-7?focusedId=1#x")
+    ).toBe("AB2-7");
+  });
+
+  it("returns null for non-Jira links", () => {
+    expect(jiraKeyFromUrl("https://github.com/acme/repo/pull/12")).toBe(null);
+    expect(jiraKeyFromUrl("https://acme.atlassian.net/browse/lowercase-1")).toBe(
+      null
+    );
+  });
+
+  it("returns null for null", () => {
+    expect(jiraKeyFromUrl(null)).toBe(null);
+  });
+});
 
 describe("jiraBrowseUrl", () => {
   it("builds a browse URL", () => {

@@ -2,6 +2,7 @@
 
 import type { TeamItem } from "@/lib/types";
 import { DragHandle } from "./DragHandle";
+import { ItemTitle } from "./ItemTitle";
 import { LinkIcon } from "./LinkIcon";
 import { QuickAddTask } from "./QuickAddTask";
 
@@ -36,15 +37,15 @@ export function TeamTodoList({
                   label={item.content}
                 />
               )}
-              <span
+              <ItemTitle
+                text={item.content}
+                link={item.link}
                 className={
                   item.done
-                    ? "flex-1 text-olivia-muted line-through"
-                    : "flex-1 text-olivia-cream"
+                    ? "text-olivia-muted line-through"
+                    : "text-olivia-cream"
                 }
-              >
-                {item.content}
-              </span>
+              />
               {item.link && <LinkIcon href={item.link} />}
               <button
                 onClick={() => onDelete(item)}

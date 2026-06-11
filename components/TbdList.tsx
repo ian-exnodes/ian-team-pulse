@@ -2,6 +2,7 @@
 
 import { relativeTime } from "@/lib/dates";
 import type { Profile, TeamItem } from "@/lib/types";
+import { ItemTitle } from "./ItemTitle";
 import { LinkIcon } from "./LinkIcon";
 import { QuickAddTask } from "./QuickAddTask";
 
@@ -48,16 +49,18 @@ export function TbdList({
                   className="mt-0.5 h-4 w-4 shrink-0 accent-olivia-pink"
                 />
                 <div className="min-w-0 flex-1">
-                  <span
-                    className={
-                      item.done
-                        ? "text-olivia-muted line-through"
-                        : "text-olivia-cream"
-                    }
-                  >
-                    {item.content}
-                  </span>{" "}
-                  {item.link && <LinkIcon href={item.link} />}
+                  <div className="flex items-center gap-2">
+                    <ItemTitle
+                      text={item.content}
+                      link={item.link}
+                      className={
+                        item.done
+                          ? "text-olivia-muted line-through"
+                          : "text-olivia-cream"
+                      }
+                    />
+                    {item.link && <LinkIcon href={item.link} />}
+                  </div>
                   <p className="mt-0.5 text-xs text-olivia-muted">
                     raised by{" "}
                     <span className="text-olivia-pink/90">{raisedBy}</span>

@@ -2,6 +2,7 @@
 
 import type { Task } from "@/lib/types";
 import { DragHandle } from "./DragHandle";
+import { ItemTitle } from "./ItemTitle";
 import { LinkIcon } from "./LinkIcon";
 
 export function TaskList({
@@ -46,15 +47,15 @@ export function TaskList({
           ) : (
             <span className="text-olivia-pink">✓</span>
           )}
-          <span
+          <ItemTitle
+            text={task.title}
+            link={task.link}
             className={
               variant === "doneToday"
                 ? "text-olivia-muted line-through"
                 : "text-olivia-cream"
             }
-          >
-            {task.title}
-          </span>
+          />
           {task.link && <LinkIcon href={task.link} />}
         </li>
       ))}
