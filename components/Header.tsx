@@ -2,6 +2,8 @@
 
 export function Header({
   displayName,
+  avatarUrl,
+  onOpenProfile,
   onOpenReport,
   onOpenJira,
   showJira,
@@ -9,6 +11,8 @@ export function Header({
   onToggleNotifications,
 }: {
   displayName: string;
+  avatarUrl: string | null;
+  onOpenProfile: () => void;
   onOpenReport: () => void;
   onOpenJira: () => void;
   showJira: boolean;
@@ -53,6 +57,30 @@ export function Header({
             className="rounded-lg bg-olivia-pink px-3 py-1.5 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep"
           >
             Report
+          </button>
+          <button
+            onClick={onOpenProfile}
+            title="Edit profile"
+            aria-label="Edit profile"
+            className="rounded-full ring-olivia-pink/60 transition hover:ring-2"
+          >
+            {avatarUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img
+                src={avatarUrl}
+                alt=""
+                className="h-7 w-7 rounded-full object-cover"
+              />
+            ) : (
+              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink">
+                {displayName
+                  .split(/\s+/)
+                  .filter(Boolean)
+                  .slice(0, 2)
+                  .map((p) => p[0]!.toUpperCase())
+                  .join("")}
+              </span>
+            )}
           </button>
           <span className="hidden text-sm text-olivia-muted sm:inline">
             {displayName}

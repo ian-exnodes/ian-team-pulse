@@ -19,6 +19,7 @@ import {
   type DragEndEvent,
   type DragStartEvent,
 } from "@dnd-kit/core";
+import { avatarPublicUrl, type PreparedAvatar } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { buildReport, type ReportRange } from "@/lib/report";
 import { resolveDrop, type DraggedItem } from "@/lib/dnd";
@@ -34,6 +35,7 @@ import { useNow } from "@/lib/useNow";
 import type { Profile, Task, TeamItem } from "@/lib/types";
 import { Header } from "./Header";
 import { JiraImportModal } from "./JiraImportModal";
+import { ProfileEditModal } from "./ProfileEditModal";
 import { NotifPrompt } from "./NotifPrompt";
 import { ProfileCard } from "./ProfileCard";
 import { ReportModal } from "./ReportModal";
@@ -121,6 +123,8 @@ export function Dashboard({
     connection: "connecting" as ConnectionState,
   }));
   const [reportOpen, setReportOpen] = useState(false);
+  const [profileOpen, setProfileOpen] = useState(false);
+  const [profileSaving, setProfileSaving] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
@@ -541,6 +545,61 @@ export function Dashboard({
     }
   }
 
+  // Upload first (fixed path, upsert), then write the row. If the row
+  // write fails after an upload, the old row is restored; the storage
+  // object was already replaced, which the next successful save corrects.
+  async function saveProfile(displayName: string, avatar: PreparedAvatar | null) {
+    const profile = store.profiles[currentUserId];
+    if (!profile) return;
+    setProfileSaving(true);
+    try {
+      let avatarUrl = profile.avatar_url;
+      if (avatar) {
+        const { error } = await supabase.storage
+          .from("avatars")
+          .upload(currentUserId, avatar.blob, {
+            upsert: true,
+            contentType: avatar.contentType,
+          });
+        if (error) {
+          showToast("Couldn't upload the image — try again");
+          return;
+        }
+        avatarUrl = avatarPublicUrl(
+          process.env.NEXT_PUBLIC_SUPABASE_URL!,
+          currentUserId,
+          Date.now()
+        );
+      }
+
+      const optimistic: Profile = {
+        ...profile,
+        display_name: displayName,
+        avatar_url: avatarUrl,
+      };
+      dispatch({ type: "upsert", table: "profiles", row: optimistic });
+      const { data, error } = await supabase
+        .from("profiles")
+        .update({ display_name: displayName, avatar_url: avatarUrl })
+        .eq("id", currentUserId)
+        .select("id");
+      if (error || !data?.length) {
+        dispatch({
+          type: "rollback",
+          table: "profiles",
+          id: currentUserId,
+          ifCurrentIs: optimistic,
+          row: profile,
+        });
+        showToast("Couldn't save profile");
+        return;
+      }
+      setProfileOpen(false);
+    } finally {
+      setProfileSaving(false);
+    }
+  }
+
   async function addTeamItem(type: TeamItem["type"], content: string, link: string) {
     const id = crypto.randomUUID();
     const row: TeamItem = {
@@ -819,6 +878,8 @@ export function Dashboard({
     <div className="min-h-screen bg-olivia-bg">
       <Header
         displayName={currentProfile?.display_name ?? "…"}
+        avatarUrl={currentProfile?.avatar_url ?? null}
+        onOpenProfile={() => setProfileOpen(true)}
         onOpenReport={() => setReportOpen(true)}
         onOpenJira={() => setJiraOpen(true)}
         showJira={jiraEnabled}
@@ -901,6 +962,14 @@ export function Dashboard({
         onRangeChange={setReportRange}
         loading={reportLoading}
       />
+      {profileOpen && currentProfile && (
+        <ProfileEditModal
+          profile={currentProfile}
+          saving={profileSaving}
+          onClose={() => setProfileOpen(false)}
+          onSave={(displayName, avatar) => void saveProfile(displayName, avatar)}
+        />
+      )}
       {jiraEnabled && (
       <JiraImportModal
         open={jiraOpen}
