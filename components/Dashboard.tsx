@@ -188,6 +188,7 @@ export function Dashboard({
           throw p.error ?? t.error ?? i.error;
         }
         if (myGen !== gen) return; // a newer hydrate owns the store now
+        if (myGen > 1) notifyFromSnapshot(t.data, i.data);
         dispatch({
           type: "hydrate",
           profiles: p.data,
@@ -209,39 +210,104 @@ export function Dashboard({
     // Notifications for teammates' activity. Skips your own actions and
     // fires only when the tab is in the background (the dashboard already
     // shows changes live when you're looking at it).
-    function maybeNotify(table: TableKey, payload: { eventType: string }, row: RowOf[TableKey]) {
-      if (!notifEnabledRef.current) return;
-      if (document.visibilityState === "visible") return;
+    //
+    // taskStatuses tracks statuses synchronously at event arrival -
+    // storeRef lags behind buffered/batched dispatches, which would cause
+    // duplicate "done" notifications for rapid successive events.
+    // notified dedupes across the event path and the hydrate-diff path.
+    const taskStatuses = new Map<string, Task["status"]>();
+    const notified = new Set<string>();
+    const canNotify = () =>
+      notifEnabledRef.current && document.visibilityState === "hidden";
+    const notifyOnce = (key: string, title: string, body: string) => {
+      if (notified.has(key)) return;
+      notified.add(key);
+      showNotification(title, body);
+    };
+    const notifyTaskDone = (task: Task) => {
+      const who =
+        storeRef.current.profiles[task.assignee_id]?.display_name ??
+        "A teammate";
+      notifyOnce(`task-done:${task.id}`, "Task done 🎉", `${who}: ${task.title}`);
+    };
 
-      if (table === "tasks" && payload.eventType === "UPDATE") {
+    function maybeNotify(
+      table: TableKey,
+      payload: { eventType: string },
+      row: RowOf[TableKey]
+    ) {
+      if (table === "tasks" && payload.eventType !== "DELETE") {
         const task = row as Task;
-        const prev = storeRef.current.tasks[task.id];
+        const prevStatus =
+          taskStatuses.get(task.id) ?? storeRef.current.tasks[task.id]?.status;
+        // Record before any gating, so the map stays accurate even while
+        // the tab is visible or notifications are muted.
+        taskStatuses.set(task.id, task.status);
         if (
-          prev &&
-          prev.status !== "done" &&
+          payload.eventType === "UPDATE" &&
+          prevStatus !== undefined &&
+          prevStatus !== "done" &&
           task.status === "done" &&
-          task.assignee_id !== currentUserId
+          task.assignee_id !== currentUserId &&
+          canNotify()
         ) {
-          const who =
-            storeRef.current.profiles[task.assignee_id]?.display_name ??
-            "A teammate";
-          showNotification("Task done 🎉", `${who}: ${task.title}`);
+          notifyTaskDone(task);
         }
+        return;
       }
 
       if (table === "teamItems" && payload.eventType === "INSERT") {
         const item = row as TeamItem;
-        if (item.type === "todo" && item.created_by !== currentUserId) {
-          showNotification("New team todo", item.content);
+        if (
+          item.type === "todo" &&
+          item.created_by !== currentUserId &&
+          canNotify()
+        ) {
+          notifyOnce(`team-todo:${item.id}`, "New team todo", item.content);
         }
       }
+    }
+
+    // Transitions that happened while the socket was down never arrive as
+    // events - surface them by diffing the hydrate snapshot against the
+    // pre-hydrate state (storeRef still holds it; buffered events are
+    // undispatched here). Skipped on the first join: the SSR snapshot is
+    // fresh and the user just opened the page.
+    function notifyFromSnapshot(tasks: Task[], teamItems: TeamItem[]) {
+      if (canNotify()) {
+        for (const task of tasks) {
+          const prevStatus =
+            taskStatuses.get(task.id) ??
+            storeRef.current.tasks[task.id]?.status;
+          if (
+            prevStatus !== "done" &&
+            task.status === "done" &&
+            task.assignee_id !== currentUserId
+          ) {
+            notifyTaskDone(task);
+          }
+        }
+        for (const item of teamItems) {
+          if (
+            item.type === "todo" &&
+            item.created_by !== currentUserId &&
+            !storeRef.current.teamItems[item.id]
+          ) {
+            notifyOnce(`team-todo:${item.id}`, "New team todo", item.content);
+          }
+        }
+      }
+      for (const task of tasks) taskStatuses.set(task.id, task.status);
     }
 
     function makeHandler<K extends TableKey>(table: K) {
       return (payload: RealtimePostgresChangesPayload<RowOf[K]>) => {
         if (payload.eventType === "DELETE") {
           const id = (payload.old as { id?: string }).id;
-          if (id) apply({ type: "remove", table, id });
+          if (id) {
+            if (table === "tasks") taskStatuses.delete(id);
+            apply({ type: "remove", table, id });
+          }
         } else {
           maybeNotify(table, payload, payload.new);
           apply({ type: "upsert", table, row: payload.new });
@@ -319,11 +385,14 @@ export function Dashboard({
       updated_at: nowIso,
     };
     dispatch({ type: "upsert", table: "tasks", row: optimistic });
-    const { error } = await supabase
+    // .select() detects RLS-denied updates too: they "succeed" with 0 rows
+    // and no error, and produce no realtime event to correct the store.
+    const { data, error } = await supabase
       .from("tasks")
       .update({ status: "done", completed_at: nowIso })
-      .eq("id", task.id);
-    if (error) {
+      .eq("id", task.id)
+      .select("id");
+    if (error || !data?.length) {
       dispatch({
         type: "rollback",
         table: "tasks",
@@ -339,11 +408,12 @@ export function Dashboard({
     const next = profile.manual_status === "off" ? null : ("off" as const);
     const optimistic: Profile = { ...profile, manual_status: next };
     dispatch({ type: "upsert", table: "profiles", row: optimistic });
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("profiles")
       .update({ manual_status: next })
-      .eq("id", profile.id);
-    if (error) {
+      .eq("id", profile.id)
+      .select("id");
+    if (error || !data?.length) {
       dispatch({
         type: "rollback",
         table: "profiles",
@@ -383,11 +453,12 @@ export function Dashboard({
   async function toggleTeamItem(item: TeamItem) {
     const optimistic: TeamItem = { ...item, done: !item.done };
     dispatch({ type: "upsert", table: "teamItems", row: optimistic });
-    const { error } = await supabase
+    const { data, error } = await supabase
       .from("team_items")
       .update({ done: !item.done })
-      .eq("id", item.id);
-    if (error) {
+      .eq("id", item.id)
+      .select("id");
+    if (error || !data?.length) {
       dispatch({
         type: "rollback",
         table: "teamItems",

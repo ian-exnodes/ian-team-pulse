@@ -25,7 +25,10 @@ Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
 3. Paste and run [`supabase/migrations/0002_per_user_permissions.sql`](supabase/migrations/0002_per_user_permissions.sql).
    This tightens permissions: only you can change your own status and tasks;
    the shared Todolist/TBD stay editable by everyone.
-4. (Optional but recommended for a first look) Paste and run
+4. Paste and run [`supabase/migrations/0003_pin_team_item_attribution.sql`](supabase/migrations/0003_pin_team_item_attribution.sql).
+   Shared items stay editable, but "raised by" attribution can no longer be
+   rewritten after the fact.
+5. (Optional but recommended for a first look) Paste and run
    [`supabase/seed.sql`](supabase/seed.sql) for 3 sample members with tasks,
    todos, and blockers.
    > The seed writes sample users into the `auth` schema, which is an
