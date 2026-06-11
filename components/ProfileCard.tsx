@@ -77,7 +77,7 @@ export function ProfileCard({
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-olivia-muted">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
           Working on
         </h3>
         {/* Only you can mark your own tasks done. */}
@@ -89,7 +89,7 @@ export function ProfileCard({
       </div>
 
       <div>
-        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-wide text-olivia-muted">
+        <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
           Done today
         </h3>
         <TaskList tasks={doneTodayTasks} variant="doneToday" />
