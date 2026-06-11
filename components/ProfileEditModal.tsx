@@ -40,13 +40,15 @@ export function ProfileEditModal({
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   });
-  useEffect(
-    () => () => {
+  useEffect(() => {
+    // Reset on every effect run: StrictMode mounts, cleans up, and mounts
+    // again - a cleanup-only effect would leave the flag stuck on true.
+    unmountedRef.current = false;
+    return () => {
       unmountedRef.current = true;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
-    },
-    []
-  );
+    };
+  }, []);
 
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
