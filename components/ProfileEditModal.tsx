@@ -33,13 +33,16 @@ export function ProfileEditModal({
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Revoke the preview object URL when the modal unmounts.
+  // Revoke the preview object URL when the modal unmounts; the flag also
+  // stops a still-resolving pickFile from creating a URL nothing will revoke.
   const previewUrlRef = useRef<string | null>(null);
+  const unmountedRef = useRef(false);
   useEffect(() => {
     previewUrlRef.current = previewUrl;
   });
   useEffect(
     () => () => {
+      unmountedRef.current = true;
       if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
     },
     []
@@ -57,6 +60,7 @@ export function ProfileEditModal({
     if (!file) return;
     try {
       const prepared = await prepareAvatar(file);
+      if (unmountedRef.current) return;
       setAvatar(prepared);
       setError(null);
       setPreviewUrl((old) => {
@@ -64,6 +68,7 @@ export function ProfileEditModal({
         return URL.createObjectURL(prepared.blob);
       });
     } catch (e) {
+      if (unmountedRef.current) return;
       setError(e instanceof Error ? e.message : "Couldn't read that image");
     }
   }
@@ -121,10 +126,11 @@ export function ProfileEditModal({
           </button>
         </div>
 
-        <label className="mb-1 block text-xs font-semibold uppercase tracking-widest text-olivia-pink">
+        <label htmlFor="profile-edit-name" className="mb-1 block text-xs font-semibold uppercase tracking-widest text-olivia-pink">
           Display name
         </label>
         <input
+          id="profile-edit-name"
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
