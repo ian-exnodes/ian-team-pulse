@@ -72,6 +72,27 @@ describe("buildReport", () => {
     expect(buildReport(tasks, NOW)).toBe("Current work ( inprogress )\n");
   });
 
+  it("omits done tasks after the 9pm clear in day range", () => {
+    const after9 = new Date(2026, 5, 10, 21, 30);
+    const tasks = [
+      task({ title: "Done this afternoon", status: "done", completed_at: isoAt(15) }),
+    ];
+
+    expect(buildReport(tasks, after9, "day")).toBe("");
+  });
+
+  it("includes the whole last 7 days in week range", () => {
+    const tasks = [
+      task({ title: "Done days ago", status: "done", completed_at: isoAt(15, 5) }),
+      task({ title: "Too old", status: "done", completed_at: isoAt(15, 2) }),
+      task({ title: "Current work" }),
+    ];
+
+    expect(buildReport(tasks, NOW, "week")).toBe(
+      "Current work ( inprogress )\n" + "Done days ago ( done )\n"
+    );
+  });
+
   it("returns an empty string when there is nothing current", () => {
     expect(buildReport([], NOW)).toBe("");
     expect(

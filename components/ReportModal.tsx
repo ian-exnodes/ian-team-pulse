@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { ReportRange } from "@/lib/report";
 
 // Colorized rendering for one report line: link in pink, title in cream,
 // status muted (done gets the deeper pink). Copying still uses the plain
@@ -45,10 +46,16 @@ export function ReportModal({
   open,
   onClose,
   text,
+  range,
+  onRangeChange,
+  loading,
 }: {
   open: boolean;
   onClose: () => void;
   text: string;
+  range: ReportRange;
+  onRangeChange: (range: ReportRange) => void;
+  loading: boolean;
 }) {
   const [copied, setCopied] = useState(false);
   const [copyError, setCopyError] = useState(false);
@@ -112,11 +119,38 @@ export function ReportModal({
           </button>
         </div>
 
+        <div className="mb-3 flex gap-1 rounded-lg border border-olivia-border bg-olivia-bg p-1 self-start">
+          {(
+            [
+              ["day", "Today"],
+              ["week", "This week"],
+            ] as const
+          ).map(([value, label]) => (
+            <button
+              key={value}
+              onClick={() => onRangeChange(value)}
+              className={`rounded-md px-3 py-1 text-xs font-medium ${
+                range === value
+                  ? "bg-olivia-pink text-olivia-bg"
+                  : "text-olivia-muted hover:text-olivia-cream"
+              }`}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+
         <pre className="flex-1 overflow-auto whitespace-pre-wrap rounded-lg border border-olivia-border bg-olivia-bg p-4 font-mono text-xs leading-relaxed">
-          {text ? (
+          {loading ? (
+            <span className="text-olivia-muted">Loading…</span>
+          ) : text ? (
             lines.map((line, i) => <ReportLine key={i} line={line} />)
           ) : (
-            <span className="text-olivia-muted">No current tasks.</span>
+            <span className="text-olivia-muted">
+              {range === "week"
+                ? "No tasks in the last 7 days."
+                : "No current tasks."}
+            </span>
           )}
         </pre>
 

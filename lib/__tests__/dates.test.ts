@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { isToday, relativeTime, sameLocalDay } from "../dates";
+import {
+  doneWindowStart,
+  isDoneToday,
+  isToday,
+  relativeTime,
+  sameLocalDay,
+} from "../dates";
 
 describe("sameLocalDay", () => {
   it("is true for two times on the same local day", () => {
@@ -34,6 +40,47 @@ describe("isToday", () => {
 
   it("is false for null", () => {
     expect(isToday(null, now)).toBe(false);
+  });
+});
+
+describe("doneWindowStart", () => {
+  it("is yesterday 9pm before 9pm", () => {
+    expect(doneWindowStart(new Date(2026, 5, 10, 12, 0))).toEqual(
+      new Date(2026, 5, 9, 21, 0)
+    );
+  });
+
+  it("is today 9pm from 9pm onward", () => {
+    expect(doneWindowStart(new Date(2026, 5, 10, 21, 0))).toEqual(
+      new Date(2026, 5, 10, 21, 0)
+    );
+    expect(doneWindowStart(new Date(2026, 5, 10, 23, 30))).toEqual(
+      new Date(2026, 5, 10, 21, 0)
+    );
+  });
+});
+
+describe("isDoneToday", () => {
+  it("includes tasks completed earlier the same day, before 9pm", () => {
+    const now = new Date(2026, 5, 10, 17, 0);
+    expect(isDoneToday(new Date(2026, 5, 10, 8, 0).toISOString(), now)).toBe(
+      true
+    );
+  });
+
+  it("clears at 9pm: the same task no longer counts", () => {
+    const task = new Date(2026, 5, 10, 8, 0).toISOString();
+    expect(isDoneToday(task, new Date(2026, 5, 10, 20, 59))).toBe(true);
+    expect(isDoneToday(task, new Date(2026, 5, 10, 21, 0))).toBe(false);
+  });
+
+  it("counts work after 9pm toward the next day", () => {
+    const lateTask = new Date(2026, 5, 9, 22, 0).toISOString();
+    expect(isDoneToday(lateTask, new Date(2026, 5, 10, 9, 0))).toBe(true);
+  });
+
+  it("is false for null", () => {
+    expect(isDoneToday(null, new Date(2026, 5, 10, 12, 0))).toBe(false);
   });
 });
 

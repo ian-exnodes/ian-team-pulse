@@ -20,9 +20,9 @@ import {
   type DragStartEvent,
 } from "@dnd-kit/core";
 import { createClient } from "@/lib/supabase/client";
-import { buildReport } from "@/lib/report";
+import { buildReport, type ReportRange } from "@/lib/report";
 import { resolveDrop, type DraggedItem } from "@/lib/dnd";
-import { isToday, recentTaskCutoffIso } from "@/lib/dates";
+import { isDoneToday, recentTaskCutoffIso, weekCutoffIso } from "@/lib/dates";
 import {
   getNotifPermission,
   getServerNotifPermission,
@@ -728,12 +728,44 @@ export function Dashboard({
     [store.teamItems]
   );
 
+  // --- Report. ---
+  // The store only holds ~48h of tasks, so the week range fetches its own
+  // snapshot when selected (refreshed each time the modal opens).
+  const [reportRange, setReportRange] = useState<ReportRange>("day");
+  const [weekTasks, setWeekTasks] = useState<Task[] | null>(null);
+
+  useEffect(() => {
+    if (!reportOpen || reportRange !== "week" || weekTasks) return;
+    let cancelled = false;
+    (async () => {
+      const { data, error } = await supabase
+        .from("tasks")
+        .select("*")
+        .or(`status.eq.inprogress,completed_at.gte.${weekCutoffIso(new Date())}`);
+      if (cancelled) return;
+      if (error || !data) {
+        showToast("Couldn't load this week's tasks");
+        setReportRange("day");
+        return;
+      }
+      setWeekTasks(data);
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [reportOpen, reportRange, weekTasks, supabase]);
+
+  const reportLoading = reportRange === "week" && weekTasks === null;
+
   // now is null until mounted; the modal opens only after a click, so the
   // report is always built by then.
-  const reportText = useMemo(
-    () => (now ? buildReport(Object.values(store.tasks), now) : ""),
-    [store.tasks, now]
-  );
+  const reportText = useMemo(() => {
+    if (!now) return "";
+    if (reportRange === "week") {
+      return weekTasks ? buildReport(weekTasks, now, "week") : "";
+    }
+    return buildReport(Object.values(store.tasks), now, "day");
+  }, [store.tasks, now, reportRange, weekTasks]);
 
   const currentProfile = store.profiles[currentUserId];
 
@@ -822,7 +854,8 @@ export function Dashboard({
                     ? memberTasks
                         .filter(
                           (t) =>
-                            t.status === "done" && isToday(t.completed_at, now)
+                            t.status === "done" &&
+                            isDoneToday(t.completed_at, now)
                         )
                         .sort((a, b) =>
                           (a.completed_at ?? "").localeCompare(
@@ -859,8 +892,14 @@ export function Dashboard({
 
       <ReportModal
         open={reportOpen}
-        onClose={() => setReportOpen(false)}
+        onClose={() => {
+          setReportOpen(false);
+          setWeekTasks(null); // refetch next open so the week view is fresh
+        }}
         text={reportText}
+        range={reportRange}
+        onRangeChange={setReportRange}
+        loading={reportLoading}
       />
       {jiraEnabled && (
       <JiraImportModal
