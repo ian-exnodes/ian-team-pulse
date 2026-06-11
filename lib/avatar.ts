@@ -8,7 +8,7 @@ export function avatarPublicUrl(
   userId: string,
   version: number
 ): string {
-  return `${baseUrl.replace(/\/$/, "")}/storage/v1/object/public/avatars/${userId}?v=${version}`;
+  return `${baseUrl.replace(/\/$/, "")}/storage/v1/object/public/avatars/${encodeURIComponent(userId)}?v=${version}`;
 }
 
 // JPEG/PNG/WebP are center-cropped + downscaled to a small square JPEG.
