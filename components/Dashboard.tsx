@@ -702,6 +702,7 @@ export function Dashboard({
 
   return (
     <DndContext
+      id="team-pulse-dnd"
       sensors={sensors}
       onDragStart={handleDragStart}
       onDragEnd={handleDragEnd}
