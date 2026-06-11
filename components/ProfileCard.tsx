@@ -1,5 +1,6 @@
 "use client";
 
+import { useDroppable } from "@dnd-kit/core";
 import { deriveStatus } from "@/lib/status";
 import type { Profile, Task } from "@/lib/types";
 import { QuickAddTask } from "./QuickAddTask";
@@ -37,10 +38,18 @@ export function ProfileCard({
     .filter((t) => t.status === "inprogress")
     .sort((a, b) => a.created_at.localeCompare(b.created_at));
 
+  // Drop a dragged task/todo here to assign it to this member.
+  const { setNodeRef, isOver } = useDroppable({ id: profile.id });
+
   return (
     <article
-      className={`flex flex-col gap-4 rounded-2xl bg-olivia-surface p-5 shadow-sm ${
-        isCurrentUser ? "ring-1 ring-olivia-pink/40" : ""
+      ref={setNodeRef}
+      className={`flex flex-col gap-4 rounded-2xl bg-olivia-surface p-5 shadow-sm transition-shadow ${
+        isOver
+          ? "ring-2 ring-olivia-pink"
+          : isCurrentUser
+            ? "ring-1 ring-olivia-pink/40"
+            : ""
       }`}
     >
       <div className="flex items-center gap-3">

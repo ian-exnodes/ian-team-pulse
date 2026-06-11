@@ -28,7 +28,10 @@ Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
 4. Paste and run [`supabase/migrations/0003_pin_team_item_attribution.sql`](supabase/migrations/0003_pin_team_item_attribution.sql).
    Shared items stay editable, but "raised by" attribution can no longer be
    rewritten after the fact.
-5. (Optional but recommended for a first look) Paste and run
+5. Paste and run [`supabase/migrations/0004_open_task_assignment.sql`](supabase/migrations/0004_open_task_assignment.sql).
+   Makes tasks collaborative so work can be assigned/reassigned by dragging
+   (profile status stays personal).
+6. (Optional but recommended for a first look) Paste and run
    [`supabase/seed.sql`](supabase/seed.sql) for 3 sample members with tasks,
    todos, and blockers.
    > The seed writes sample users into the `auth` schema, which is an
@@ -115,12 +118,24 @@ npm test
 Unit tests cover the pure logic: status derivation, the "done today" local-day
 filter, relative times, and the exact report format.
 
+## Assigning work (drag and drop)
+
+Grab the grip handle on any in-progress task or Team Todolist item and drop it
+onto a member's card:
+
+- **task → another card** reassigns it to that person
+- **team todo → a card** turns it into that person's task and removes it from
+  the shared list
+
+Tasks are collaborative (anyone can assign/reassign); only you can set your own
+Off status or quick-add to your own card.
+
 ## Notifications
 
 Click the bell in the header to enable browser notifications. While the tab
-is in the background you'll be notified when a teammate finishes a task or
-adds a team todo. Your own actions never notify you; the bell toggles mute
-once permission is granted.
+is in the background you'll be notified when a teammate finishes a task, adds a
+team todo, or **assigns a task to you**. Your own actions never notify you; the
+bell toggles mute once permission is granted.
 
 ## How status works
 

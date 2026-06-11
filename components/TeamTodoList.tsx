@@ -1,6 +1,7 @@
 "use client";
 
 import type { TeamItem } from "@/lib/types";
+import { DragHandle } from "./DragHandle";
 import { LinkIcon } from "./LinkIcon";
 import { QuickAddTask } from "./QuickAddTask";
 
@@ -27,6 +28,16 @@ export function TeamTodoList({
         <ul className="mb-3 space-y-2">
           {items.map((item) => (
             <li key={item.id} className="flex items-start gap-2 text-sm">
+              {/* Not-done todos can be dragged onto a member to assign. */}
+              {!item.done && (
+                <span className="mt-0.5">
+                  <DragHandle
+                    dragId={`todo:${item.id}`}
+                    item={{ kind: "todo", id: item.id }}
+                    label={item.content}
+                  />
+                </span>
+              )}
               <input
                 type="checkbox"
                 checked={item.done}

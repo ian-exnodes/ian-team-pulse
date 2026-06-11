@@ -9,8 +9,19 @@ import {
   useSyncExternalStore,
 } from "react";
 import type { RealtimePostgresChangesPayload } from "@supabase/supabase-js";
+import {
+  DndContext,
+  DragOverlay,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+  type DragStartEvent,
+} from "@dnd-kit/core";
 import { createClient } from "@/lib/supabase/client";
 import { buildReport } from "@/lib/report";
+import { resolveDrop, type DraggedItem } from "@/lib/dnd";
 import { isToday, recentTaskCutoffIso } from "@/lib/dates";
 import {
   getNotifPermission,
@@ -231,6 +242,14 @@ export function Dashboard({
       notifyOnce(`task-done:${task.id}`, "Task done 🎉", `${who}: ${task.title}`);
     };
 
+    const notifyAssigned = (task: Task) => {
+      notifyOnce(
+        `task-assigned:${task.id}`,
+        "You've been assigned a task",
+        task.title
+      );
+    };
+
     function maybeNotify(
       table: TableKey,
       payload: { eventType: string },
@@ -238,20 +257,32 @@ export function Dashboard({
     ) {
       if (table === "tasks" && payload.eventType !== "DELETE") {
         const task = row as Task;
-        const prevStatus =
-          taskStatuses.get(task.id) ?? storeRef.current.tasks[task.id]?.status;
+        const prev = storeRef.current.tasks[task.id];
+        const prevStatus = taskStatuses.get(task.id) ?? prev?.status;
+        const prevAssignee = prev?.assignee_id;
         // Record before any gating, so the map stays accurate even while
         // the tab is visible or notifications are muted.
         taskStatuses.set(task.id, task.status);
+        if (!canNotify()) return;
+        // A teammate completed a task assigned to someone else.
         if (
           payload.eventType === "UPDATE" &&
           prevStatus !== undefined &&
           prevStatus !== "done" &&
           task.status === "done" &&
-          task.assignee_id !== currentUserId &&
-          canNotify()
+          task.assignee_id !== currentUserId
         ) {
           notifyTaskDone(task);
+        }
+        // Work landed on you (reassigned to you, or a todo converted onto
+        // you). The visibility gate means you didn't do it yourself.
+        if (task.assignee_id === currentUserId) {
+          const wasMine =
+            payload.eventType === "UPDATE" && prevAssignee === currentUserId;
+          const iCreatedIt = task.created_by === currentUserId;
+          if (!wasMine && !iCreatedIt) {
+            notifyAssigned(task);
+          }
         }
         return;
       }
@@ -276,15 +307,22 @@ export function Dashboard({
     function notifyFromSnapshot(tasks: Task[], teamItems: TeamItem[]) {
       if (canNotify()) {
         for (const task of tasks) {
-          const prevStatus =
-            taskStatuses.get(task.id) ??
-            storeRef.current.tasks[task.id]?.status;
+          const prev = storeRef.current.tasks[task.id];
+          const prevStatus = taskStatuses.get(task.id) ?? prev?.status;
           if (
             prevStatus !== "done" &&
             task.status === "done" &&
             task.assignee_id !== currentUserId
           ) {
             notifyTaskDone(task);
+          }
+          // Assigned to me while the socket was down.
+          if (
+            task.assignee_id === currentUserId &&
+            prev?.assignee_id !== currentUserId &&
+            task.created_by !== currentUserId
+          ) {
+            notifyAssigned(task);
           }
         }
         for (const item of teamItems) {
@@ -489,6 +527,80 @@ export function Dashboard({
     }
   }
 
+  // --- Drag-to-assign mutations. ---
+
+  async function reassignTask(task: Task, to: string) {
+    const optimistic: Task = {
+      ...task,
+      assignee_id: to,
+      updated_at: new Date().toISOString(),
+    };
+    dispatch({ type: "upsert", table: "tasks", row: optimistic });
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ assignee_id: to })
+      .eq("id", task.id)
+      .select("id");
+    if (error || !data?.length) {
+      dispatch({
+        type: "rollback",
+        table: "tasks",
+        id: task.id,
+        ifCurrentIs: optimistic,
+        row: task,
+      });
+      showToast("Couldn't reassign task");
+    }
+  }
+
+  // Move a shared todo onto a member: insert a task, then drop the todo.
+  // Insert first so a failure never loses the todo; the brief window where
+  // both exist is recoverable (the todo can be dismissed).
+  async function convertTodoToTask(item: TeamItem, to: string) {
+    const taskId = crypto.randomUUID();
+    const nowIso = new Date().toISOString();
+    const newTask: Task = {
+      id: taskId,
+      title: item.content.slice(0, 200), // tasks.title CHECK caps at 200
+      link: item.link,
+      status: "inprogress",
+      assignee_id: to,
+      created_by: currentUserId,
+      completed_at: null,
+      created_at: nowIso,
+      updated_at: nowIso,
+    };
+    dispatch({ type: "upsert", table: "tasks", row: newTask });
+    dispatch({ type: "remove", table: "teamItems", id: item.id });
+
+    const { data, error } = await supabase
+      .from("tasks")
+      .insert({
+        id: taskId,
+        title: newTask.title,
+        link: newTask.link,
+        assignee_id: to,
+        created_by: currentUserId,
+      })
+      .select("id");
+    if (error || !data?.length) {
+      dispatch({ type: "remove", table: "tasks", id: taskId });
+      dispatch({ type: "upsert", table: "teamItems", row: item });
+      showToast("Couldn't assign todo — try again");
+      return;
+    }
+
+    const { error: delError } = await supabase
+      .from("team_items")
+      .delete()
+      .eq("id", item.id);
+    if (delError) {
+      // Task was created; restore the todo to match the DB (both now exist).
+      dispatch({ type: "upsert", table: "teamItems", row: item });
+      showToast("Assigned, but couldn't remove the todo — dismiss it manually");
+    }
+  }
+
   // --- Derived views. ---
 
   const profiles = useMemo(
@@ -532,7 +644,48 @@ export function Dashboard({
 
   const currentProfile = store.profiles[currentUserId];
 
+  // --- Drag and drop. ---
+  // Distance constraint so a click on the handle isn't read as a drag.
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 5 } }),
+    useSensor(KeyboardSensor)
+  );
+  const [dragLabel, setDragLabel] = useState<string | null>(null);
+
+  function handleDragStart(event: DragStartEvent) {
+    const data = event.active.data.current as DraggedItem | undefined;
+    if (!data) return;
+    setDragLabel(
+      data.kind === "task"
+        ? store.tasks[data.id]?.title ?? "task"
+        : store.teamItems[data.id]?.content ?? "todo"
+    );
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    setDragLabel(null);
+    const data = event.active.data.current as DraggedItem | undefined;
+    const targetId = event.over?.id;
+    if (!data || typeof targetId !== "string") return;
+
+    const action = resolveDrop(data, targetId);
+    if (!action) return;
+    if (action.type === "reassign") {
+      const task = store.tasks[action.taskId];
+      if (task) void reassignTask(task, action.to);
+    } else {
+      const item = store.teamItems[action.itemId];
+      if (item) void convertTodoToTask(item, action.to);
+    }
+  }
+
   return (
+    <DndContext
+      sensors={sensors}
+      onDragStart={handleDragStart}
+      onDragEnd={handleDragEnd}
+      onDragCancel={() => setDragLabel(null)}
+    >
     <div className="min-h-screen bg-olivia-bg">
       <Header
         displayName={currentProfile?.display_name ?? "…"}
@@ -608,6 +761,15 @@ export function Dashboard({
           Reconnecting…
         </div>
       )}
+
+      <DragOverlay dropAnimation={null}>
+        {dragLabel ? (
+          <div className="max-w-xs truncate rounded-lg border border-olivia-pink bg-olivia-raised px-3 py-1.5 text-sm text-olivia-cream shadow-lg">
+            {dragLabel}
+          </div>
+        ) : null}
+      </DragOverlay>
     </div>
+    </DndContext>
   );
 }
