@@ -27,16 +27,14 @@ export function TeamTodoList({
       ) : (
         <ul className="mb-3 space-y-2">
           {items.map((item) => (
-            <li key={item.id} className="flex items-start gap-2 text-sm">
+            <li key={item.id} className="flex items-center gap-2 text-sm">
               {/* Not-done todos can be dragged onto a member to assign. */}
               {!item.done && (
-                <span className="mt-0.5">
-                  <DragHandle
-                    dragId={`todo:${item.id}`}
-                    item={{ kind: "todo", id: item.id }}
-                    label={item.content}
-                  />
-                </span>
+                <DragHandle
+                  dragId={`todo:${item.id}`}
+                  item={{ kind: "todo", id: item.id }}
+                  label={item.content}
+                />
               )}
               <span
                 className={
@@ -61,7 +59,7 @@ export function TeamTodoList({
                   stroke="currentColor"
                   strokeWidth="1.3"
                   strokeLinecap="round"
-                  className="mt-0.5 h-4 w-4"
+                  className="h-4 w-4"
                 >
                   <path d="M2.5 4h11M6.5 4V2.75A.75.75 0 0 1 7.25 2h1.5a.75.75 0 0 1 .75.75V4M5 4l.5 9.25a1 1 0 0 0 1 .75h3a1 1 0 0 0 1-.75L11 4M6.75 7v4M9.25 7v4" />
                 </svg>

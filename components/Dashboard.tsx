@@ -566,12 +566,14 @@ export function Dashboard({
     }
   }
 
-  async function toggleTeamItem(item: TeamItem) {
-    const optimistic: TeamItem = { ...item, done: !item.done };
+  // Ticking a blocker means it's resolved into actionable work: it leaves
+  // the TBD list and reappears in the Team Todolist (undone).
+  async function resolveTbdToTodo(item: TeamItem) {
+    const optimistic: TeamItem = { ...item, type: "todo", done: false };
     dispatch({ type: "upsert", table: "teamItems", row: optimistic });
     const { data, error } = await supabase
       .from("team_items")
-      .update({ done: !item.done })
+      .update({ type: "todo", done: false })
       .eq("id", item.id)
       .select("id");
     if (error || !data?.length) {
@@ -582,7 +584,7 @@ export function Dashboard({
         ifCurrentIs: optimistic,
         row: item,
       });
-      showToast("Couldn't save change");
+      showToast("Couldn't move blocker to todolist");
     }
   }
 
@@ -844,7 +846,7 @@ export function Dashboard({
             profiles={store.profiles}
             now={now}
             onAdd={(content, link) => addTeamItem("tbd", content, link)}
-            onToggle={toggleTeamItem}
+            onToggle={resolveTbdToTodo}
             onDismiss={dismissTeamItem}
           />
         </aside>

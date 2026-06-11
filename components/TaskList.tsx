@@ -21,32 +21,30 @@ export function TaskList({
   return (
     <ul className="space-y-1.5">
       {tasks.map((task) => (
-        <li key={task.id} className="flex items-start gap-2 text-sm">
+        <li key={task.id} className="flex items-center gap-2 text-sm">
           {variant === "working" ? (
             <>
               {/* Any in-progress task can be dragged onto another card. */}
-              <span className="mt-0.5">
-                <DragHandle
-                  dragId={`task:${task.id}`}
-                  item={{ kind: "task", id: task.id, assigneeId: task.assignee_id }}
-                  label={task.title}
-                />
-              </span>
+              <DragHandle
+                dragId={`task:${task.id}`}
+                item={{ kind: "task", id: task.id, assigneeId: task.assignee_id }}
+                label={task.title}
+              />
               {onMarkDone ? (
                 <button
                   onClick={() => onMarkDone(task)}
                   title="Mark done"
-                  className="mt-0.5 h-4 w-4 shrink-0 rounded-full border-2 border-olivia-muted hover:border-olivia-pink hover:bg-olivia-pink/20"
+                  className="h-4 w-4 shrink-0 rounded-full border-2 border-olivia-muted hover:border-olivia-pink hover:bg-olivia-pink/20"
                 />
               ) : (
                 <span
                   aria-hidden
-                  className="mx-1.25 mt-2 h-1.5 w-1.5 shrink-0 rounded-full bg-olivia-pink/60"
+                  className="mx-1.25 h-1.5 w-1.5 shrink-0 rounded-full bg-olivia-pink/60"
                 />
               )}
             </>
           ) : (
-            <span className="mt-0.5 text-olivia-pink">✓</span>
+            <span className="text-olivia-pink">✓</span>
           )}
           <span
             className={
