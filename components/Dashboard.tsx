@@ -735,7 +735,7 @@ export function Dashboard({
       />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 lg:flex-row">
-        <section className="grid flex-1 content-start gap-5 sm:grid-cols-2 xl:grid-cols-3">
+        <section className="grid flex-1 content-start gap-5 sm:grid-cols-2">
           {profiles.map((profile) => {
             const memberTasks = tasksByAssignee[profile.id] ?? [];
             return (
