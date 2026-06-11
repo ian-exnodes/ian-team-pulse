@@ -72,7 +72,7 @@ export default function LoginPage() {
         return;
       }
       setBusy(true);
-      const { error: signUpError } = await supabase.auth.signUp({
+      const { data, error: signUpError } = await supabase.auth.signUp({
         email: addr,
         password,
         options: {
@@ -83,6 +83,13 @@ export default function LoginPage() {
       setBusy(false);
       if (signUpError) {
         setError(signUpError.message);
+        return;
+      }
+      // When "Confirm email" is off, signUp returns a session and the user is
+      // already signed in — go straight to the app instead of asking them to
+      // check an email that was never sent.
+      if (data.session) {
+        window.location.assign("/");
         return;
       }
       setNotice(
