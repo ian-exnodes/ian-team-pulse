@@ -23,6 +23,7 @@ export function ProfileCard({
   isCurrentUser,
   onAddTask,
   onMarkDone,
+  onReopen,
   onToggleOff,
 }: {
   profile: Profile;
@@ -31,6 +32,7 @@ export function ProfileCard({
   isCurrentUser: boolean;
   onAddTask: (title: string, link: string) => void;
   onMarkDone: (task: Task) => void;
+  onReopen: (task: Task) => void;
   onToggleOff: () => void;
 }) {
   const status = deriveStatus(profile, tasks);
@@ -92,7 +94,12 @@ export function ProfileCard({
         <h3 className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
           Done today
         </h3>
-        <TaskList tasks={doneTodayTasks} variant="doneToday" />
+        {/* Only you can reopen your own done tasks. */}
+        <TaskList
+          tasks={doneTodayTasks}
+          variant="doneToday"
+          onReopen={isCurrentUser ? onReopen : undefined}
+        />
       </div>
 
       {isCurrentUser && (

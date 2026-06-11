@@ -547,6 +547,31 @@ export function Dashboard({
     }
   }
 
+  async function reopenTask(task: Task) {
+    const optimistic: Task = {
+      ...task,
+      status: "inprogress",
+      completed_at: null,
+      updated_at: new Date().toISOString(),
+    };
+    dispatch({ type: "upsert", table: "tasks", row: optimistic });
+    const { data, error } = await supabase
+      .from("tasks")
+      .update({ status: "inprogress", completed_at: null })
+      .eq("id", task.id)
+      .select("id");
+    if (error || !data?.length) {
+      dispatch({
+        type: "rollback",
+        table: "tasks",
+        id: task.id,
+        ifCurrentIs: optimistic,
+        row: task,
+      });
+      showToast("Couldn't save change");
+    }
+  }
+
   async function toggleOff(profile: Profile) {
     const next = profile.manual_status === "off" ? null : ("off" as const);
     const optimistic: Profile = { ...profile, manual_status: next };
@@ -949,6 +974,7 @@ export function Dashboard({
                 isCurrentUser={profile.id === currentUserId}
                 onAddTask={addTask}
                 onMarkDone={markTaskDone}
+                onReopen={reopenTask}
                 onToggleOff={() => toggleOff(profile)}
               />
             );

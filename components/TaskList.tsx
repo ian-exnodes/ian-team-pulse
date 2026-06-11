@@ -9,11 +9,13 @@ export function TaskList({
   tasks,
   variant,
   onMarkDone,
+  onReopen,
 }: {
   tasks: Task[];
   variant: "working" | "doneToday";
   // Present only on your own card - others' tasks are read-only.
   onMarkDone?: (task: Task) => void;
+  onReopen?: (task: Task) => void;
 }) {
   if (tasks.length === 0) {
     return <p className="text-sm text-olivia-muted/70">Nothing here</p>;
@@ -44,8 +46,17 @@ export function TaskList({
                 />
               )}
             </>
+          ) : onReopen ? (
+            <button
+              onClick={() => onReopen(task)}
+              title="Reopen task"
+              className="group/done flex h-4 w-4 shrink-0 items-center justify-center text-status-active hover:text-status-warn"
+            >
+              <span className="group-hover/done:hidden">✓</span>
+              <span className="hidden group-hover/done:inline">↩</span>
+            </button>
           ) : (
-            <span className="text-olivia-pink">✓</span>
+            <span className="text-status-active">✓</span>
           )}
           <ItemTitle
             text={task.title}
