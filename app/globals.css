@@ -15,4 +15,8 @@
   --color-olivia-muted: #9d9793;
   --color-olivia-pink: #e8c4b8;
   --color-olivia-pink-deep: #d49a8d;
+
+  /* Vivid status highlights that pop against the near-black board. */
+  --color-status-active: #45e07a; /* neon green - In Progress */
+  --color-status-chill: #38d6e0; /* cyan - Chill */
 }

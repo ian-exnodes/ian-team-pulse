@@ -33,6 +33,7 @@ import {
 import { useNow } from "@/lib/useNow";
 import type { Profile, Task, TeamItem } from "@/lib/types";
 import { Header } from "./Header";
+import { NotifPrompt } from "./NotifPrompt";
 import { ProfileCard } from "./ProfileCard";
 import { ReportModal } from "./ReportModal";
 import { TbdList } from "./TbdList";
@@ -624,12 +625,15 @@ export function Dashboard({
 
   // --- Derived views. ---
 
+  // Your own card always leads; everyone else follows alphabetically.
   const profiles = useMemo(
     () =>
-      Object.values(store.profiles).sort((a, b) =>
-        a.display_name.localeCompare(b.display_name)
-      ),
-    [store.profiles]
+      Object.values(store.profiles).sort((a, b) => {
+        if (a.id === currentUserId) return -1;
+        if (b.id === currentUserId) return 1;
+        return a.display_name.localeCompare(b.display_name);
+      }),
+    [store.profiles, currentUserId]
   );
 
   const tasksByAssignee = useMemo(() => {
@@ -720,6 +724,14 @@ export function Dashboard({
               : "off"
         }
         onToggleNotifications={toggleNotifications}
+      />
+
+      <NotifPrompt
+        show={notifPerm === "default"}
+        onEnable={() => {
+          void requestNotifPermission();
+          setNotifMuted(false);
+        }}
       />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 lg:flex-row">

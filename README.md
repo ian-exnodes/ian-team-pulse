@@ -31,16 +31,12 @@ Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
 5. Paste and run [`supabase/migrations/0004_open_task_assignment.sql`](supabase/migrations/0004_open_task_assignment.sql).
    Makes tasks collaborative so work can be assigned/reassigned by dragging
    (profile status stays personal).
-6. (Optional but recommended for a first look) Paste and run
-   [`supabase/seed.sql`](supabase/seed.sql) for 3 sample members with tasks,
-   todos, and blockers.
-   > The seed writes sample users into the `auth` schema, which is an
-   > unsupported surface and may break on future Supabase versions. If it
-   > errors, create 3 users under **Authentication → Add user** instead and
-   > re-run only the tasks/team_items sections with those users' UUIDs.
+
+There's no sample data — teammates just register, and each gets a profile card
+automatically on first sign-in.
 
 Using the Supabase CLI instead? `supabase link --project-ref <ref>` then
-`supabase db push` applies the migration.
+`supabase db push` applies the migrations.
 
 ## 3. Configure auth
 

@@ -1,7 +1,7 @@
 import type { DerivedStatus } from "@/lib/types";
 
-// GMK Olivia mapping: pink = actively working, cream outline = chill,
-// muted = off.
+// Vivid highlights so status reads at a glance: neon green = working,
+// cyan = chill, muted = off.
 const STYLES: Record<DerivedStatus, { label: string; className: string }> = {
   off: {
     label: "Off",
@@ -9,11 +9,12 @@ const STYLES: Record<DerivedStatus, { label: string; className: string }> = {
   },
   inprogress: {
     label: "In Progress",
-    className: "bg-olivia-pink text-olivia-bg",
+    className:
+      "bg-status-active font-semibold text-olivia-bg shadow-[0_0_12px_-1px_rgba(69,224,122,0.7)]",
   },
   chill: {
     label: "Chill",
-    className: "border border-olivia-border bg-transparent text-olivia-cream",
+    className: "border border-status-chill/40 bg-status-chill/10 text-status-chill",
   },
 };
 
