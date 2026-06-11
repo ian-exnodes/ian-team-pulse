@@ -26,7 +26,8 @@ export function DragHandle({
       {...listeners}
       {...attributes}
       aria-label={`Drag to assign: ${label}`}
-      className={`shrink-0 cursor-grab touch-none text-olivia-muted/60 hover:text-olivia-pink active:cursor-grabbing ${
+      title="Drag to assign to another member"
+      className={`shrink-0 cursor-grab touch-none text-olivia-muted hover:text-olivia-pink active:cursor-grabbing ${
         isDragging ? "opacity-40" : ""
       }`}
     >
