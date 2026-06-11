@@ -15,14 +15,13 @@ function initials(name: string): string {
 
 // Edit your own avatar + display name. Nothing uploads until Save;
 // the preview shows the prepared blob (GIFs animate).
+// Parent mounts this component only while the modal is open.
 export function ProfileEditModal({
-  open,
   profile,
   saving,
   onClose,
   onSave,
 }: {
-  open: boolean;
   profile: Profile;
   saving: boolean;
   onClose: () => void;
@@ -34,30 +33,25 @@ export function ProfileEditModal({
   const [error, setError] = useState<string | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
-  // Re-seed local state each time the modal opens.
-  /* eslint-disable react-hooks/set-state-in-effect */
+  // Revoke the preview object URL when the modal unmounts.
+  const previewUrlRef = useRef<string | null>(null);
   useEffect(() => {
-    if (!open) return;
-    setName(profile.display_name);
-    setAvatar(null);
-    setError(null);
-    setPreviewUrl((old) => {
-      if (old) URL.revokeObjectURL(old);
-      return null;
-    });
-  }, [open, profile.display_name]);
-  /* eslint-enable react-hooks/set-state-in-effect */
+    previewUrlRef.current = previewUrl;
+  });
+  useEffect(
+    () => () => {
+      if (previewUrlRef.current) URL.revokeObjectURL(previewUrlRef.current);
+    },
+    []
+  );
 
   useEffect(() => {
-    if (!open) return;
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
+  }, [onClose]);
 
   async function pickFile(file: File | undefined) {
     if (!file) return;
