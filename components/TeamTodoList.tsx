@@ -10,11 +10,11 @@ import { QuickAddTask } from "./QuickAddTask";
 export function TeamTodoList({
   items,
   onAdd,
-  onToggle,
+  onDelete,
 }: {
   items: TeamItem[];
   onAdd: (content: string, link: string) => void;
-  onToggle: (item: TeamItem) => void;
+  onDelete: (item: TeamItem) => void;
 }) {
   return (
     <section className="rounded-2xl border border-olivia-border bg-olivia-bg/40 p-5">
@@ -38,22 +38,34 @@ export function TeamTodoList({
                   />
                 </span>
               )}
-              <input
-                type="checkbox"
-                checked={item.done}
-                onChange={() => onToggle(item)}
-                className="mt-0.5 h-4 w-4 shrink-0 accent-olivia-pink"
-              />
               <span
                 className={
                   item.done
-                    ? "text-olivia-muted line-through"
-                    : "text-olivia-cream"
+                    ? "flex-1 text-olivia-muted line-through"
+                    : "flex-1 text-olivia-cream"
                 }
               >
                 {item.content}
               </span>
               {item.link && <LinkIcon href={item.link} />}
+              <button
+                onClick={() => onDelete(item)}
+                title="Delete"
+                aria-label={`Delete ${item.content}`}
+                className="shrink-0 text-olivia-muted/60 hover:text-olivia-pink"
+              >
+                <svg
+                  aria-hidden
+                  viewBox="0 0 16 16"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="1.3"
+                  strokeLinecap="round"
+                  className="mt-0.5 h-4 w-4"
+                >
+                  <path d="M2.5 4h11M6.5 4V2.75A.75.75 0 0 1 7.25 2h1.5a.75.75 0 0 1 .75.75V4M5 4l.5 9.25a1 1 0 0 0 1 .75h3a1 1 0 0 0 1-.75L11 4M6.75 7v4M9.25 7v4" />
+                </svg>
+              </button>
             </li>
           ))}
         </ul>

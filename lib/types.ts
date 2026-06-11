@@ -99,6 +99,42 @@ export interface Database {
         };
         Relationships: [];
       };
+      jira_connections: {
+        Row: {
+          user_id: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          cloud_id: string;
+          site_url: string;
+          jira_account_id: string | null;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          user_id: string;
+          access_token: string;
+          refresh_token: string;
+          expires_at: string;
+          cloud_id: string;
+          site_url: string;
+          jira_account_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Update: {
+          user_id?: string;
+          access_token?: string;
+          refresh_token?: string;
+          expires_at?: string;
+          cloud_id?: string;
+          site_url?: string;
+          jira_account_id?: string | null;
+          created_at?: string;
+          updated_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

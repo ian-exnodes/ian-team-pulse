@@ -33,6 +33,7 @@ import {
 import { useNow } from "@/lib/useNow";
 import type { Profile, Task, TeamItem } from "@/lib/types";
 import { Header } from "./Header";
+import { JiraImportModal } from "./JiraImportModal";
 import { NotifPrompt } from "./NotifPrompt";
 import { ProfileCard } from "./ProfileCard";
 import { ReportModal } from "./ReportModal";
@@ -120,6 +121,7 @@ export function Dashboard({
     connection: "connecting" as ConnectionState,
   }));
   const [reportOpen, setReportOpen] = useState(false);
+  const [jiraOpen, setJiraOpen] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const toastTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const now = useNow();
@@ -148,6 +150,25 @@ export function Dashboard({
     setToast(message);
     toastTimer.current = setTimeout(() => setToast(null), 4000);
   }
+
+  // Surface the result of the Jira OAuth round-trip (?jira=… on return), then
+  // clean the URL so a refresh doesn't replay it.
+  useEffect(() => {
+    const jira = new URLSearchParams(window.location.search).get("jira");
+    if (!jira) return;
+    window.history.replaceState({}, "", window.location.pathname);
+    const id = setTimeout(() => {
+      if (jira === "connected") {
+        showToast("Jira connected");
+        setJiraOpen(true);
+      } else if (jira === "misconfigured") {
+        showToast("Jira isn't configured on the server yet");
+      } else {
+        showToast("Couldn't connect to Jira — try again");
+      }
+    }, 0);
+    return () => clearTimeout(id);
+  }, []);
 
   function toggleNotifications() {
     if (notifPerm === "ssr") return;
@@ -424,6 +445,51 @@ export function Dashboard({
       dispatch({ type: "remove", table: "tasks", id });
       showToast("Couldn't add task — try again");
     }
+  }
+
+  // Import selected Jira issues as tasks on your own card. Skips issues whose
+  // browse URL is already on the board (dedup by link). Reuses the optimistic
+  // insert pattern, batched into one DB write.
+  async function importJiraTasks(
+    issues: { summary: string; url: string }[]
+  ): Promise<number> {
+    const existing = new Set(
+      Object.values(store.tasks)
+        .map((t) => t.link)
+        .filter(Boolean)
+    );
+    const fresh = issues.filter((i) => !existing.has(i.url));
+    if (fresh.length === 0) return 0;
+
+    const nowIso = new Date().toISOString();
+    const rows: Task[] = fresh.map((i) => ({
+      id: crypto.randomUUID(),
+      title: i.summary.slice(0, 200), // tasks.title CHECK caps at 200
+      link: i.url,
+      status: "inprogress",
+      assignee_id: currentUserId,
+      created_by: currentUserId,
+      completed_at: null,
+      created_at: nowIso,
+      updated_at: nowIso,
+    }));
+    rows.forEach((row) => dispatch({ type: "upsert", table: "tasks", row }));
+
+    const { error } = await supabase.from("tasks").insert(
+      rows.map((r) => ({
+        id: r.id,
+        title: r.title,
+        link: r.link,
+        assignee_id: currentUserId,
+        created_by: currentUserId,
+      }))
+    );
+    if (error) {
+      rows.forEach((r) => dispatch({ type: "remove", table: "tasks", id: r.id }));
+      showToast("Couldn't import from Jira — try again");
+      return 0;
+    }
+    return rows.length;
   }
 
   async function markTaskDone(task: Task) {
@@ -716,6 +782,7 @@ export function Dashboard({
       <Header
         displayName={currentProfile?.display_name ?? "…"}
         onOpenReport={() => setReportOpen(true)}
+        onOpenJira={() => setJiraOpen(true)}
         notifState={
           notifPerm === "ssr" || notifPerm === "unsupported"
             ? "hidden"
@@ -770,7 +837,7 @@ export function Dashboard({
           <TeamTodoList
             items={todoItems}
             onAdd={(content, link) => addTeamItem("todo", content, link)}
-            onToggle={toggleTeamItem}
+            onDelete={dismissTeamItem}
           />
           <TbdList
             items={tbdItems}
@@ -787,6 +854,22 @@ export function Dashboard({
         open={reportOpen}
         onClose={() => setReportOpen(false)}
         text={reportText}
+      />
+      <JiraImportModal
+        open={jiraOpen}
+        onClose={() => setJiraOpen(false)}
+        existingLinks={
+          new Set(
+            Object.values(store.tasks)
+              .map((t) => t.link)
+              .filter((l): l is string => l !== null)
+          )
+        }
+        onImport={async (issues) => {
+          const n = await importJiraTasks(issues);
+          if (n > 0) showToast(`Imported ${n} ${n === 1 ? "task" : "tasks"} from Jira`);
+          return n;
+        }}
       />
       <Toast message={toast} />
 

@@ -3,11 +3,13 @@
 export function Header({
   displayName,
   onOpenReport,
+  onOpenJira,
   notifState,
   onToggleNotifications,
 }: {
   displayName: string;
   onOpenReport: () => void;
+  onOpenJira: () => void;
   notifState: "on" | "off" | "hidden";
   onToggleNotifications: () => void;
 }) {
@@ -35,6 +37,13 @@ export function Header({
               {notifState === "on" ? "🔔" : "🔕"}
             </button>
           )}
+          <button
+            onClick={onOpenJira}
+            title="Import issues from Jira"
+            className="rounded-lg border border-olivia-border px-3 py-1.5 text-sm text-olivia-muted hover:bg-olivia-raised hover:text-olivia-cream"
+          >
+            Jira
+          </button>
           <button
             onClick={onOpenReport}
             className="rounded-lg bg-olivia-pink px-3 py-1.5 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep"

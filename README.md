@@ -182,6 +182,32 @@ onto a member's card:
 Tasks are collaborative (anyone can assign/reassign); only you can set your own
 Off status or quick-add to your own card.
 
+## Importing from Jira (optional)
+
+Each teammate can connect their own Jira account and pull their open issues
+onto their card. The issue summary becomes the task title and the Jira link
+goes in the task's link — no retyping.
+
+**Setup (one-time):**
+
+1. **Register an OAuth 2.0 (3LO) app** at
+   [developer.atlassian.com](https://developer.atlassian.com) → your app →
+   **Authorization → OAuth 2.0 (3LO)**. Add the API scopes `read:jira-work`,
+   `read:me`, and `offline_access`. Set **Callback URLs** to
+   `http://localhost:3000/api/jira/callback` and
+   `https://<your-app>.vercel.app/api/jira/callback`.
+2. Copy the app's **Client ID** and **Secret** into `.env.local` (and Vercel):
+   `JIRA_CLIENT_ID`, `JIRA_CLIENT_SECRET`. Add your Supabase **service-role**
+   key as `SUPABASE_SERVICE_ROLE_KEY` (Project Settings → API). All three are
+   **server-only** — never prefix them `NEXT_PUBLIC_`.
+3. Run [`supabase/migrations/0005_jira_connections.sql`](supabase/migrations/0005_jira_connections.sql)
+   in the SQL editor (the table that stores each user's tokens, locked to
+   server-only access).
+
+Then click **Jira** in the header → **Connect Jira** → authorize → pick issues
+→ **Import**. Tokens stay server-side; only the issue list reaches the browser.
+Import is one-directional (Jira → board); board edits don't change Jira.
+
 ## Notifications
 
 Click the bell in the header to enable browser notifications. While the tab
