@@ -19,6 +19,7 @@
   /* Vivid status highlights that pop against the near-black board. */
   --color-status-active: #45e07a; /* neon green - In Progress */
   --color-status-chill: #38d6e0; /* cyan - Chill */
+  --color-status-warn: #e6b450; /* amber - reopened / off / blocker */
 
   /* Breathing glow for the In Progress badge - reads as "live right now". */
   --animate-status-glow: status-glow 2.2s ease-in-out infinite;

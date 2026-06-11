@@ -851,15 +851,6 @@ export function Dashboard({
 
   const currentProfile = store.profiles[currentUserId];
 
-  // id -> display name, for rendering activity log sentences.
-  const namesById = useMemo(
-    () =>
-      Object.fromEntries(
-        Object.values(store.profiles).map((p) => [p.id, p.display_name])
-      ),
-    [store.profiles]
-  );
-
   // Jira import is off by default; enable per-environment with
   // NEXT_PUBLIC_JIRA_ENABLED=true (kept local until we decide on it).
   const jiraEnabled = process.env.NEXT_PUBLIC_JIRA_ENABLED === "true";
@@ -992,7 +983,7 @@ export function Dashboard({
       <ActivityLog
         activity={activity}
         currentUserId={currentUserId}
-        namesById={namesById}
+        profiles={store.profiles}
         now={now}
       />
 

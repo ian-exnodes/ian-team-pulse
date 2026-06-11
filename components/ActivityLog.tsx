@@ -1,74 +1,141 @@
 "use client";
 
-import { renderActivity, type ActivityRow } from "@/lib/activity";
+import { useMemo } from "react";
+import {
+  renderActivity,
+  type ActivityRow,
+  type ActivityType,
+} from "@/lib/activity";
 import { relativeTime } from "@/lib/dates";
+import type { Profile } from "@/lib/types";
 
-// Full-width feed below the board. Member names are highlighted; the current
-// user renders as "You" in pink. Newest first.
+// Colored chip per action type — the "status" highlight.
+const CHIP: Record<ActivityType, { label: string; cls: string }> = {
+  task_added: { label: "Task", cls: "bg-status-chill/15 text-status-chill" },
+  task_assigned: { label: "Assigned", cls: "bg-olivia-pink/15 text-olivia-pink" },
+  task_done: { label: "Done", cls: "bg-status-active/15 text-status-active" },
+  task_reopened: { label: "Reopened", cls: "bg-status-warn/15 text-status-warn" },
+  status_off: { label: "Off", cls: "bg-olivia-muted/20 text-olivia-muted" },
+  status_back: { label: "Back", cls: "bg-status-active/15 text-status-active" },
+  todo_added: { label: "Todo", cls: "bg-status-chill/15 text-status-chill" },
+  todo_checked: { label: "Todo done", cls: "bg-status-active/15 text-status-active" },
+  todo_deleted: { label: "Todo removed", cls: "bg-olivia-muted/20 text-olivia-muted" },
+  tbd_raised: { label: "Blocker", cls: "bg-status-warn/15 text-status-warn" },
+  tbd_resolved: { label: "Resolved", cls: "bg-status-active/15 text-status-active" },
+  tbd_dismissed: { label: "Dismissed", cls: "bg-olivia-muted/20 text-olivia-muted" },
+};
+
+function initials(name: string): string {
+  return (
+    name
+      .split(/\s+/)
+      .filter(Boolean)
+      .slice(0, 2)
+      .map((p) => p[0]!.toUpperCase())
+      .join("") || "?"
+  );
+}
+
+// Chat-style feed below the board. Each entry is the actor's avatar + a
+// message bubble; member names are highlighted (you = pink, others = cyan)
+// and a colored chip marks the action.
 export function ActivityLog({
   activity,
   currentUserId,
-  namesById,
+  profiles,
   now,
 }: {
   activity: ActivityRow[];
   currentUserId: string;
-  namesById: Record<string, string>;
+  profiles: Record<string, Profile>;
   now: Date | null;
 }) {
+  const namesById = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(profiles).map((p) => [p.id, p.display_name])
+      ),
+    [profiles]
+  );
+
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-12">
-      <h2 className="mb-3 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
+      <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
         <span className="inline-block h-2 w-2 rounded-full bg-status-active" />
-        Activity
+        Activity Logs
       </h2>
 
       {activity.length === 0 ? (
         <p className="text-sm text-olivia-muted/70">No activity yet.</p>
       ) : (
-        <ul className="olivia-scroll max-h-96 space-y-0.5 overflow-y-auto pr-2">
-          {activity.map((entry) => (
-            <li
-              key={entry.id}
-              className="flex items-baseline justify-between gap-4 rounded-lg px-2 py-1.5 text-sm hover:bg-olivia-surface/60"
-            >
-              <span className="min-w-0 text-olivia-cream/90">
-                {renderActivity(entry, currentUserId, namesById).map((seg, i) => {
-                  if (seg.kind === "name") {
-                    return (
+        <ul className="olivia-scroll max-h-[28rem] space-y-3 overflow-y-auto pr-2">
+          {activity.map((entry) => {
+            const actor = entry.actor_id ? profiles[entry.actor_id] : undefined;
+            const chip = CHIP[entry.type];
+            return (
+              <li key={entry.id} className="flex gap-2.5">
+                {actor?.avatar_url ? (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img
+                    src={actor.avatar_url}
+                    alt=""
+                    className="h-7 w-7 shrink-0 rounded-full object-cover"
+                  />
+                ) : (
+                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink">
+                    {initials(actor?.display_name ?? "?")}
+                  </span>
+                )}
+
+                <div className="min-w-0 flex-1">
+                  <div className="inline-block max-w-full rounded-2xl rounded-tl-sm border border-olivia-border bg-olivia-surface px-3 py-2">
+                    <p className="text-sm leading-snug text-olivia-muted">
                       <span
-                        key={i}
-                        className={
-                          seg.isYou
-                            ? "font-semibold text-olivia-pink"
-                            : "font-semibold text-olivia-cream"
-                        }
+                        className={`mr-1.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${chip.cls}`}
                       >
-                        {seg.value}
+                        {chip.label}
                       </span>
-                    );
-                  }
-                  if (seg.kind === "detail") {
-                    return (
-                      <span key={i} className="text-olivia-muted">
-                        {seg.value}
-                      </span>
-                    );
-                  }
-                  return <span key={i}>{seg.value}</span>;
-                })}
-              </span>
-              {now && (
-                <time
-                  dateTime={entry.created_at}
-                  title={new Date(entry.created_at).toLocaleString()}
-                  className="shrink-0 whitespace-nowrap text-xs text-olivia-muted"
-                >
-                  {relativeTime(entry.created_at, now)}
-                </time>
-              )}
-            </li>
-          ))}
+                      {renderActivity(entry, currentUserId, namesById).map(
+                        (seg, i) => {
+                          if (seg.kind === "name") {
+                            return (
+                              <span
+                                key={i}
+                                className={
+                                  seg.isYou
+                                    ? "font-semibold text-olivia-pink"
+                                    : "font-semibold text-status-chill"
+                                }
+                              >
+                                {seg.value}
+                              </span>
+                            );
+                          }
+                          if (seg.kind === "detail") {
+                            return (
+                              <span key={i} className="text-olivia-cream">
+                                {seg.value}
+                              </span>
+                            );
+                          }
+                          return <span key={i}>{seg.value}</span>;
+                        }
+                      )}
+                    </p>
+                  </div>
+                  {now && (
+                    <time
+                      dateTime={entry.created_at}
+                      title={new Date(entry.created_at).toLocaleString()}
+                      className="mt-1 block text-[11px] text-olivia-muted"
+                    >
+                      {relativeTime(entry.created_at, now)}
+                    </time>
+                  )}
+                </div>
+              </li>
+            );
+          })}
         </ul>
       )}
     </section>
