@@ -8,7 +8,7 @@ the sidebar, and a **Report** button generates a copy-pasteable plain-text
 summary of all current tasks. Everything updates in realtime for everyone.
 
 Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
-(Postgres, realtime, magic-link auth).
+(Postgres, realtime, email + password auth).
 
 ## 1. Create the Supabase project
 
@@ -44,26 +44,30 @@ Using the Supabase CLI instead? `supabase link --project-ref <ref>` then
 
 ## 3. Configure auth
 
-1. **Authentication → Sign In / Up**: make sure the **Email** provider is
-   enabled (it is by default; magic links need no password setup).
+Auth is **email + password**: you sign up once (one confirmation email),
+then log in with your password — so routine logins send no email.
+
+1. **Authentication → Sign In / Up → Email**: make sure the **Email** provider
+   is enabled and **Confirm email** is ON (both are the defaults). This is what
+   sends the one-time signup confirmation.
 2. **Authentication → URL Configuration → Site URL**: set it to where the app
    runs — `http://localhost:3000` for development, your production URL when you
-   deploy. **If you skip this, magic links will point at the wrong host.**
-3. (Recommended) **Authentication → URL Configuration → Redirect URLs**: add
-   `http://localhost:3000/auth/callback` (and the production equivalent later).
+   deploy. **If you skip this, email links point at the wrong host.**
+3. **Authentication → URL Configuration → Redirect URLs**: add both
+   `http://localhost:3000/auth/callback` (signup confirmation) and
+   `http://localhost:3000/auth/reset` (password reset), plus the production
+   equivalents when you deploy.
 
-That's it — the app works with Supabase's **default** "Magic link or OTP"
-email template out of the box (the sign-in link lands on `/auth/callback`,
-or on the Site URL where the app forwards it automatically).
+Sign up → click the confirmation link (lands on `/auth/callback`) → you're in.
+Forgot your password? The login page's reset link emails you a link to
+`/auth/reset` to set a new one.
 
-> **Email limits & templates.** New Supabase projects can't edit email
-> templates and are rate-limited to a handful of emails per hour until you
-> configure custom SMTP (Authentication → Emails → SMTP Settings, e.g. with
-> Resend). That's fine for trying the app out. For production, set up SMTP
-> and (optionally) point the Magic Link template at
-> `{{ .SiteURL }}/auth/confirm?token_hash={{ .TokenHash }}&type=email` —
-> this also lets a link sent to your laptop be opened on your phone
-> (the default template's link only works in the browser that requested it).
+> **Email limits & SMTP.** New Supabase projects use a built-in email service
+> rate-limited to a handful of emails per hour. Because only signup and
+> password-reset send email now (not everyday logins), you'll rarely hit it.
+> For a real team, configure custom SMTP anyway (Authentication → Emails →
+> SMTP Settings, e.g. with Resend's free tier) to lift the limit and unlock
+> editable templates.
 
 ## 4. Configure the app
 
@@ -83,9 +87,10 @@ npm install
 npm run dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000), enter your email, and
-click the magic link. A profile is created for you automatically on first
-sign-in.
+Open [http://localhost:3000](http://localhost:3000), click **Create an
+account**, set an email + password + name, then click the confirmation link in
+your inbox. A profile is created for you automatically on first sign-in; after
+that you log in with your password.
 
 ## Restricting signups (optional)
 
