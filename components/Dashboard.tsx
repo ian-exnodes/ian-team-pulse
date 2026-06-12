@@ -23,6 +23,7 @@ import { avatarPublicUrl, type PreparedAvatar } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { buildReport, type ReportRange } from "@/lib/report";
 import { resolveDrop, type DraggedItem } from "@/lib/dnd";
+import { jiraKeyFromUrl } from "@/lib/jira";
 import { isDoneToday, recentTaskCutoffIso, weekCutoffIso } from "@/lib/dates";
 import {
   getNotifPermission,
@@ -480,12 +481,17 @@ export function Dashboard({
   async function importJiraTasks(
     issues: { summary: string; url: string }[]
   ): Promise<number> {
-    const existing = new Set(
-      Object.values(store.tasks)
-        .map((t) => t.link)
-        .filter(Boolean)
+    // Skip issues already on the board as a task OR a team item (match by
+    // the Jira key, so differing link formats still de-dupe).
+    const onBoard = new Set(
+      [...Object.values(store.tasks), ...Object.values(store.teamItems)]
+        .map((r) => jiraKeyFromUrl(r.link))
+        .filter((k): k is string => k !== null)
     );
-    const fresh = issues.filter((i) => !existing.has(i.url));
+    const fresh = issues.filter((i) => {
+      const key = jiraKeyFromUrl(i.url);
+      return !key || !onBoard.has(key);
+    });
     if (fresh.length === 0) return 0;
 
     const nowIso = new Date().toISOString();
@@ -876,6 +882,18 @@ export function Dashboard({
 
   const currentProfile = store.profiles[currentUserId];
 
+  // Jira keys already on the board (as tasks or team items) - used to mark
+  // search results that are already imported.
+  const existingJiraKeys = useMemo(
+    () =>
+      new Set(
+        [...Object.values(store.tasks), ...Object.values(store.teamItems)]
+          .map((r) => jiraKeyFromUrl(r.link))
+          .filter((k): k is string => k !== null)
+      ),
+    [store.tasks, store.teamItems]
+  );
+
   // Jira import is off by default; enable per-environment with
   // NEXT_PUBLIC_JIRA_ENABLED=true (kept local until we decide on it).
   const jiraEnabled = process.env.NEXT_PUBLIC_JIRA_ENABLED === "true";
@@ -1036,13 +1054,7 @@ export function Dashboard({
       {jiraEnabled && jiraOpen && (
       <JiraImportModal
         onClose={() => setJiraOpen(false)}
-        existingLinks={
-          new Set(
-            Object.values(store.tasks)
-              .map((t) => t.link)
-              .filter((l): l is string => l !== null)
-          )
-        }
+        existingKeys={existingJiraKeys}
         onImport={async (issues) => {
           const n = await importJiraTasks(issues);
           if (n > 0) showToast(`Imported ${n} ${n === 1 ? "task" : "tasks"} from Jira`);

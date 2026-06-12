@@ -17,11 +17,12 @@ type Conn = "loading" | "disconnected" | "connected" | "error";
 // onto your card. Tokens stay server-side; only the issue list comes back.
 export function JiraImportModal({
   onClose,
-  existingLinks,
+  existingKeys,
   onImport,
 }: {
   onClose: () => void;
-  existingLinks: Set<string>;
+  // Jira keys already on the board (tasks or team items) - shown as imported.
+  existingKeys: Set<string>;
   onImport: (issues: JiraIssue[]) => Promise<number>;
 }) {
   const [conn, setConn] = useState<Conn>("loading");
@@ -185,7 +186,7 @@ export function JiraImportModal({
               ) : (
                 <ul className="space-y-1.5">
                   {issues.map((issue) => {
-                    const already = existingLinks.has(issue.url);
+                    const already = existingKeys.has(issue.key);
                     return (
                       <li key={issue.key}>
                         <label
