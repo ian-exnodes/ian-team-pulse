@@ -104,9 +104,26 @@ describe("buildSearchJql", () => {
     );
   });
 
-  it("adds a summary prefix match for a keyword", () => {
+  it("adds a summary prefix match for a word keyword", () => {
     expect(buildSearchJql("  login  ")).toBe(
-      'status in ("To Do", "Ready", "Blocked", "In Progress") AND summary ~ "login*" ORDER BY updated DESC'
+      'status in ("To Do", "Ready", "Blocked", "In Progress") AND (summary ~ "login*") ORDER BY updated DESC'
+    );
+  });
+
+  it("also matches the issue key when the keyword looks like one", () => {
+    const jql = buildSearchJql("cpd-3281");
+    expect(jql).toContain('summary ~ "cpd-3281*"');
+    expect(jql).toContain('key = "CPD-3281"'); // uppercased
+  });
+
+  it("turns a bare number into candidate keys across projects", () => {
+    const jql = buildSearchJql("3281", ["CPD", "BB"]);
+    expect(jql).toContain('key in ("CPD-3281", "BB-3281")');
+  });
+
+  it("a bare number with no project keys stays a summary search", () => {
+    expect(buildSearchJql("3281")).toBe(
+      'status in ("To Do", "Ready", "Blocked", "In Progress") AND (summary ~ "3281*") ORDER BY updated DESC'
     );
   });
 

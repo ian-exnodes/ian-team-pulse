@@ -9,13 +9,25 @@ export const JIRA_SCOPES = "read:jira-work read:me offline_access";
 export const SEARCH_STATUSES = ["To Do", "Ready", "Blocked", "In Progress"];
 
 // Builds the JQL for the import search: always restricted to SEARCH_STATUSES,
-// optionally narrowed by a summary keyword (prefix match).
-export function buildSearchJql(keyword: string): string {
+// optionally narrowed by a keyword. The keyword matches the summary (title
+// words) AND the issue key, so you can also search by key ("CPD-3281") or by
+// bare number ("3281", tried against each accessible project). Non-existent
+// keys in JQL return no rows rather than erroring, so the OR is safe.
+export function buildSearchJql(keyword: string, projectKeys: string[] = []): string {
   const statusClause = `status in (${SEARCH_STATUSES.map((s) => `"${s}"`).join(", ")})`;
   const kw = keyword.trim();
   if (!kw) return `${statusClause} ORDER BY updated DESC`;
-  const escaped = kw.replace(/[\\"]/g, "\\$&"); // safe inside a JQL string literal
-  return `${statusClause} AND summary ~ "${escaped}*" ORDER BY updated DESC`;
+  const esc = (s: string) => s.replace(/[\\"]/g, "\\$&"); // JQL string literal
+
+  const matchers = [`summary ~ "${esc(kw)}*"`];
+  if (/^[A-Za-z][A-Za-z0-9]+-\d+$/.test(kw)) {
+    matchers.push(`key = "${esc(kw.toUpperCase())}"`);
+  } else if (/^\d+$/.test(kw) && projectKeys.length > 0) {
+    const keys = projectKeys.map((p) => `"${esc(p)}-${kw}"`).join(", ");
+    matchers.push(`key in (${keys})`);
+  }
+
+  return `${statusClause} AND (${matchers.join(" OR ")}) ORDER BY updated DESC`;
 }
 
 export interface JiraIssue {
@@ -146,6 +158,26 @@ export async function getPrimarySite(
   return { cloudId: sites[0].id, siteUrl: sites[0].url };
 }
 
+// The accessible project keys (e.g. ["CPD", "ST"]); used to turn a bare
+// number into candidate issue keys. Returns [] on failure.
+export async function getProjectKeys(opts: {
+  cloudId: string;
+  accessToken: string;
+}): Promise<string[]> {
+  const res = await fetch(
+    `${API_BASE}/ex/jira/${opts.cloudId}/rest/api/3/project/search?maxResults=50`,
+    {
+      headers: {
+        Authorization: `Bearer ${opts.accessToken}`,
+        Accept: "application/json",
+      },
+    }
+  );
+  if (!res.ok) return [];
+  const data = (await res.json()) as { values?: { key?: string }[] };
+  return (data.values ?? []).map((p) => p.key).filter((k): k is string => !!k);
+}
+
 // Uses the current enhanced search endpoint (/search/jql); the legacy
 // /search was removed (410). Returns up to `max` open issues.
 export async function searchIssues(opts: {
@@ -155,8 +187,14 @@ export async function searchIssues(opts: {
   keyword?: string;
   max?: number;
 }): Promise<JiraIssue[]> {
+  const kw = (opts.keyword ?? "").trim();
+  // Only a bare-number search needs the project keys (to build candidate
+  // issue keys); skip the extra call for everything else.
+  const projectKeys = /^\d+$/.test(kw)
+    ? await getProjectKeys({ cloudId: opts.cloudId, accessToken: opts.accessToken })
+    : [];
   const params = new URLSearchParams({
-    jql: buildSearchJql(opts.keyword ?? ""),
+    jql: buildSearchJql(kw, projectKeys),
     fields: "summary,status,assignee",
     maxResults: String(opts.max ?? 30),
   });
