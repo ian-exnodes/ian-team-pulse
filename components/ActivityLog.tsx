@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo } from "react";
+import { useEffect, useMemo, useRef } from "react";
 import {
   renderActivity,
   type ActivityRow,
@@ -36,9 +36,11 @@ function initials(name: string): string {
   );
 }
 
-// Chat-style feed below the board. Each entry is the actor's avatar + a
-// message bubble; member names are highlighted (you = pink, others = cyan)
-// and a colored chip marks the action.
+// Chat-style feed below the board, framed as a single chatbox card. Entries
+// run oldest → newest (newest at the bottom, like a chat) inside a fixed-
+// height scroll area that auto-scrolls to the bottom when a new log arrives.
+// Each entry is the actor's avatar + a message bubble; member names are
+// highlighted (you = pink, others = cyan) and a colored chip marks the action.
 export function ActivityLog({
   activity,
   currentUserId,
@@ -58,6 +60,23 @@ export function ActivityLog({
     [profiles]
   );
 
+  // `activity` arrives newest-first; a chat reads oldest-first.
+  const ordered = useMemo(() => [...activity].reverse(), [activity]);
+
+  const scrollRef = useRef<HTMLUListElement>(null);
+  const hasScrolledRef = useRef(false);
+  const newestId = activity[0]?.id;
+  useEffect(() => {
+    const el = scrollRef.current;
+    if (!el) return;
+    // Jump instantly on first paint, glide on subsequent new entries.
+    el.scrollTo({
+      top: el.scrollHeight,
+      behavior: hasScrolledRef.current ? "smooth" : "instant",
+    });
+    hasScrolledRef.current = true;
+  }, [newestId]);
+
   return (
     <section className="mx-auto w-full max-w-7xl px-4 pb-12">
       <h2 className="mb-4 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
@@ -66,10 +85,15 @@ export function ActivityLog({
       </h2>
 
       {activity.length === 0 ? (
-        <p className="text-sm text-olivia-muted/70">No activity yet.</p>
+        <div className="flex h-[28rem] items-center justify-center rounded-2xl border border-olivia-border bg-olivia-surface">
+          <p className="text-sm text-olivia-muted/70">No activity yet.</p>
+        </div>
       ) : (
-        <ul className="olivia-scroll max-h-[28rem] space-y-3 overflow-y-auto pr-2">
-          {activity.map((entry) => {
+        <ul
+          ref={scrollRef}
+          className="olivia-scroll h-[28rem] space-y-3 overflow-y-auto rounded-2xl border border-olivia-border bg-olivia-surface p-4"
+        >
+          {ordered.map((entry) => {
             const actor = entry.actor_id ? profiles[entry.actor_id] : undefined;
             const chip = CHIP[entry.type];
             return (
@@ -88,7 +112,7 @@ export function ActivityLog({
                 )}
 
                 <div className="min-w-0 flex-1">
-                  <div className="inline-block max-w-full rounded-2xl rounded-tl-sm border border-olivia-border bg-olivia-surface px-3 py-2">
+                  <div className="inline-block max-w-full rounded-2xl rounded-tl-sm border border-olivia-border bg-olivia-raised px-3 py-2">
                     <p className="text-sm leading-snug text-olivia-muted">
                       <span
                         className={`mr-1.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${chip.cls}`}
