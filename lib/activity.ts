@@ -29,7 +29,7 @@ export interface ActivityRow {
 
 export type Segment =
   | { kind: "text"; value: string }
-  | { kind: "name"; value: string; isYou: boolean }
+  | { kind: "name"; value: string; isYou: boolean; userId: string | null }
   | { kind: "detail"; value: string };
 
 const t = (value: string): Segment => ({ kind: "text", value });
@@ -49,6 +49,7 @@ export function renderActivity(
     kind: "name",
     value: actorIsYou ? "You" : actorName,
     isYou: actorIsYou,
+    userId: entry.actor_id,
   };
 
   const targetIsYou = entry.target_user_id === currentUserId;
@@ -59,6 +60,7 @@ export function renderActivity(
     kind: "name",
     value: targetIsYou ? "you" : targetName,
     isYou: targetIsYou,
+    userId: entry.target_user_id,
   };
 
   const detail = entry.detail ?? "";
