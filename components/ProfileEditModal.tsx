@@ -4,6 +4,20 @@ import { useEffect, useRef, useState } from "react";
 import { prepareAvatar, type PreparedAvatar } from "@/lib/avatar";
 import type { Profile } from "@/lib/types";
 
+// Presets tuned to read clearly on the dark olivia surface. "Default" (null)
+// falls back to the app's normal name color.
+const NAME_COLOR_PRESETS = [
+  "#ff8fa3", // coral
+  "#f5c451", // amber
+  "#8fe388", // lime
+  "#6cc5ff", // sky
+  "#c4a3ff", // violet
+  "#5fe3c0", // teal
+  "#ff9f6b", // orange
+] as const;
+
+const HEX_RE = /^#[0-9a-fA-F]{6}$/;
+
 function initials(name: string): string {
   return name
     .split(/\s+/)
@@ -32,9 +46,14 @@ export function ProfileEditModal({
   saving: boolean;
   showJira: boolean;
   onClose: () => void;
-  onSave: (displayName: string, avatar: PreparedAvatar | null) => void;
+  onSave: (
+    displayName: string,
+    avatar: PreparedAvatar | null,
+    nameColor: string | null
+  ) => void;
 }) {
   const [name, setName] = useState(profile.display_name);
+  const [color, setColor] = useState<string | null>(profile.name_color);
   const [avatar, setAvatar] = useState<PreparedAvatar | null>(null);
   const [previewUrl, setPreviewUrl] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -114,7 +133,10 @@ export function ProfileEditModal({
 
   const trimmed = name.trim();
   const nameValid = trimmed.length >= 1 && trimmed.length <= 80;
-  const dirty = avatar !== null || trimmed !== profile.display_name;
+  const dirty =
+    avatar !== null ||
+    trimmed !== profile.display_name ||
+    color !== profile.name_color;
   const shownAvatar = previewUrl ?? profile.avatar_url;
 
   return (
@@ -146,7 +168,10 @@ export function ProfileEditModal({
               className="h-24 w-24 rounded-full object-cover"
             />
           ) : (
-            <div className="flex h-24 w-24 items-center justify-center rounded-full bg-olivia-raised text-2xl font-semibold text-olivia-pink">
+            <div
+              className="flex h-24 w-24 items-center justify-center rounded-full bg-olivia-raised text-2xl font-semibold text-olivia-pink"
+              style={{ color: color ?? undefined }}
+            >
               {initials(trimmed || profile.display_name)}
             </div>
           )}
@@ -173,12 +198,61 @@ export function ProfileEditModal({
           value={name}
           onChange={(e) => setName(e.target.value)}
           maxLength={80}
+          style={{ color: color ?? undefined }}
           className="mb-1 w-full rounded-lg border border-olivia-border bg-olivia-raised px-2.5 py-1.5 text-sm text-olivia-cream outline-none placeholder:text-olivia-muted/70 focus:border-olivia-pink"
         />
         {!nameValid && (
           <p className="text-xs text-red-400">Name must be 1–80 characters.</p>
         )}
         {error && <p className="text-xs text-red-400">{error}</p>}
+
+        <div className="mt-4">
+          <p className="mb-1.5 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
+            Name color
+          </p>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setColor(null)}
+              title="Default color"
+              aria-label="Default color"
+              className={`flex h-7 w-7 items-center justify-center rounded-full border text-[10px] text-olivia-cream ${
+                color === null
+                  ? "border-olivia-pink ring-2 ring-olivia-pink"
+                  : "border-olivia-border"
+              }`}
+            >
+              A
+            </button>
+            {NAME_COLOR_PRESETS.map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                onClick={() => setColor(preset)}
+                title={preset}
+                aria-label={`Color ${preset}`}
+                style={{ backgroundColor: preset }}
+                className={`h-7 w-7 rounded-full border ${
+                  color?.toLowerCase() === preset
+                    ? "border-olivia-cream ring-2 ring-olivia-cream"
+                    : "border-transparent"
+                }`}
+              />
+            ))}
+            <label
+              title="Custom color"
+              className="flex h-7 w-7 cursor-pointer items-center justify-center rounded-full border border-olivia-border text-olivia-muted hover:text-olivia-cream"
+            >
+              <span aria-hidden>🎨</span>
+              <input
+                type="color"
+                value={color && HEX_RE.test(color) ? color : "#e8c4b8"}
+                onChange={(e) => setColor(e.target.value)}
+                className="sr-only"
+              />
+            </label>
+          </div>
+        </div>
 
         {showJira && (
           <div className="mt-5 border-t border-olivia-border pt-4">
@@ -228,7 +302,7 @@ export function ProfileEditModal({
             Cancel
           </button>
           <button
-            onClick={() => onSave(trimmed, avatar)}
+            onClick={() => onSave(trimmed, avatar, color)}
             disabled={!nameValid || !dirty || saving}
             className="rounded-lg bg-olivia-pink px-4 py-1.5 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep disabled:opacity-50"
           >

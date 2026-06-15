@@ -602,7 +602,11 @@ export function Dashboard({
   // Upload first (fixed path, upsert), then write the row. If the row
   // write fails after an upload, the old row is restored; the storage
   // object was already replaced, which the next successful save corrects.
-  async function saveProfile(displayName: string, avatar: PreparedAvatar | null) {
+  async function saveProfile(
+    displayName: string,
+    avatar: PreparedAvatar | null,
+    nameColor: string | null
+  ) {
     const profile = store.profiles[currentUserId];
     if (!profile) return;
     setProfileSaving(true);
@@ -630,11 +634,12 @@ export function Dashboard({
         ...profile,
         display_name: displayName,
         avatar_url: avatarUrl,
+        name_color: nameColor,
       };
       dispatch({ type: "upsert", table: "profiles", row: optimistic });
       const { data, error } = await supabase
         .from("profiles")
-        .update({ display_name: displayName, avatar_url: avatarUrl })
+        .update({ display_name: displayName, avatar_url: avatarUrl, name_color: nameColor })
         .eq("id", currentUserId)
         .select("id");
       if (error || !data?.length) {
@@ -1048,7 +1053,9 @@ export function Dashboard({
           saving={profileSaving}
           showJira={jiraEnabled}
           onClose={() => setProfileOpen(false)}
-          onSave={(displayName, avatar) => void saveProfile(displayName, avatar)}
+          onSave={(displayName, avatar, nameColor) =>
+            void saveProfile(displayName, avatar, nameColor)
+          }
         />
       )}
       {jiraEnabled && jiraOpen && (
