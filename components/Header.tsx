@@ -3,6 +3,7 @@
 export function Header({
   displayName,
   avatarUrl,
+  nameColor,
   onOpenProfile,
   onOpenReport,
   notifState,
@@ -10,6 +11,7 @@ export function Header({
 }: {
   displayName: string;
   avatarUrl: string | null;
+  nameColor: string | null;
   onOpenProfile: () => void;
   onOpenReport: () => void;
   notifState: "on" | "off" | "hidden";
@@ -59,7 +61,10 @@ export function Header({
                 className="h-7 w-7 rounded-full object-cover"
               />
             ) : (
-              <span className="flex h-7 w-7 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink">
+              <span
+                className="flex h-7 w-7 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink"
+                style={{ color: nameColor ?? undefined }}
+              >
                 {displayName
                   .split(/\s+/)
                   .filter(Boolean)
@@ -69,7 +74,10 @@ export function Header({
               </span>
             )}
           </button>
-          <span className="hidden text-sm text-olivia-muted sm:inline">
+          <span
+            className="hidden text-sm text-olivia-muted sm:inline"
+            style={{ color: nameColor ?? undefined }}
+          >
             {displayName}
           </span>
           <form action="/auth/signout" method="post">

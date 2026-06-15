@@ -950,6 +950,7 @@ export function Dashboard({
       <Header
         displayName={currentProfile?.display_name ?? "…"}
         avatarUrl={currentProfile?.avatar_url ?? null}
+        nameColor={currentProfile?.name_color ?? null}
         onOpenProfile={() => setProfileOpen(true)}
         onOpenReport={() => setReportOpen(true)}
         notifState={
