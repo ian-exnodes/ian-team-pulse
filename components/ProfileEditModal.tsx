@@ -246,6 +246,7 @@ export function ProfileEditModal({
               <span aria-hidden>🎨</span>
               <input
                 type="color"
+                aria-label="Custom color"
                 value={color && HEX_RE.test(color) ? color : "#e8c4b8"}
                 onChange={(e) => setColor(e.target.value)}
                 className="sr-only"
