@@ -114,7 +114,10 @@ export function ActivityLog({
                     className="h-7 w-7 shrink-0 rounded-full object-cover"
                   />
                 ) : (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink"
+                    style={{ color: actor?.name_color ?? undefined }}
+                  >
                     {initials(actor?.display_name ?? "?")}
                   </span>
                 )}
