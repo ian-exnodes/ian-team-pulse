@@ -40,6 +40,9 @@ export function TbdList({
             const raisedBy = item.created_by
               ? profiles[item.created_by]?.display_name ?? "someone"
               : "someone";
+            const raisedByColor = item.created_by
+              ? profiles[item.created_by]?.name_color ?? undefined
+              : undefined;
             return (
               <li key={item.id} className="flex items-start gap-2 text-sm">
                 <input
@@ -63,7 +66,12 @@ export function TbdList({
                   </div>
                   <p className="mt-0.5 text-xs text-olivia-muted">
                     raised by{" "}
-                    <span className="text-olivia-pink/90">{raisedBy}</span>
+                    <span
+                      className="text-olivia-pink/90"
+                      style={{ color: raisedByColor }}
+                    >
+                      {raisedBy}
+                    </span>
                     {now && <> · {relativeTime(item.created_at, now)}</>}
                   </p>
                 </div>

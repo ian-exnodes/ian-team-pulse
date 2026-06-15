@@ -63,13 +63,18 @@ export function ProfileCard({
             className="h-10 w-10 rounded-full object-cover"
           />
         ) : (
-          <div className="flex h-10 w-10 items-center justify-center rounded-full bg-olivia-raised text-sm font-semibold text-olivia-pink">
+          <div
+            className="flex h-10 w-10 items-center justify-center rounded-full bg-olivia-raised text-sm font-semibold text-olivia-pink"
+            style={{ color: profile.name_color ?? undefined }}
+          >
             {initials(profile.display_name)}
           </div>
         )}
         <div className="min-w-0 flex-1">
           <p className="truncate font-medium text-olivia-cream">
-            {profile.display_name}
+            <span style={{ color: profile.name_color ?? undefined }}>
+              {profile.display_name}
+            </span>
             {isCurrentUser && (
               <span className="ml-1.5 text-xs text-olivia-muted">(you)</span>
             )}
