@@ -24,13 +24,23 @@ const text = (segs: ReturnType<typeof renderActivity>) =>
 describe("renderActivity", () => {
   it("renders the actor as 'You' (capitalised) when it's the current user", () => {
     const segs = renderActivity(row({ actor_id: "me" }), "me", NAMES);
-    expect(segs[0]).toEqual({ kind: "name", value: "You", isYou: true });
+    expect(segs[0]).toEqual({
+      kind: "name",
+      value: "You",
+      isYou: true,
+      userId: "me",
+    });
     expect(text(segs)).toBe("You added a new task: Fix bug");
   });
 
   it("renders another member's name, not 'You'", () => {
     const segs = renderActivity(row({ actor_id: "henry" }), "me", NAMES);
-    expect(segs[0]).toEqual({ kind: "name", value: "Henry", isYou: false });
+    expect(segs[0]).toEqual({
+      kind: "name",
+      value: "Henry",
+      isYou: false,
+      userId: "henry",
+    });
   });
 
   it("assigns to 'you' (lowercase) when you're the target", () => {
@@ -55,6 +65,22 @@ describe("renderActivity", () => {
         )
       )
     ).toBe("You assigned Fix bug to Chi");
+  });
+
+  it("carries the actor and target user ids on name segments", () => {
+    const segs = renderActivity(
+      row({ type: "task_assigned", actor_id: "henry", target_user_id: "me" }),
+      "me",
+      NAMES
+    );
+    const names = segs.filter((s) => s.kind === "name");
+    expect(names[0]).toMatchObject({ value: "Henry", userId: "henry" });
+    expect(names[1]).toMatchObject({ value: "you", userId: "me" });
+  });
+
+  it("uses a null userId for an unknown/deleted actor", () => {
+    const segs = renderActivity(row({ actor_id: null }), "me", NAMES);
+    expect(segs[0]).toMatchObject({ value: "Someone", userId: null });
   });
 
   it("uses 'a task for X' when a new task is created for someone else", () => {

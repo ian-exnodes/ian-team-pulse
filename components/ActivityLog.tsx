@@ -60,6 +60,14 @@ export function ActivityLog({
     [profiles]
   );
 
+  const colorsById = useMemo(
+    () =>
+      Object.fromEntries(
+        Object.values(profiles).map((p) => [p.id, p.name_color])
+      ),
+    [profiles]
+  );
+
   // `activity` arrives newest-first; a chat reads oldest-first.
   const ordered = useMemo(() => [...activity].reverse(), [activity]);
 
@@ -106,7 +114,10 @@ export function ActivityLog({
                     className="h-7 w-7 shrink-0 rounded-full object-cover"
                   />
                 ) : (
-                  <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink">
+                  <span
+                    className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-olivia-raised text-[10px] font-semibold text-olivia-pink"
+                    style={{ color: actor?.name_color ?? undefined }}
+                  >
                     {initials(actor?.display_name ?? "?")}
                   </span>
                 )}
@@ -122,14 +133,20 @@ export function ActivityLog({
                       {renderActivity(entry, currentUserId, namesById).map(
                         (seg, i) => {
                           if (seg.kind === "name") {
+                            const custom = seg.userId
+                              ? colorsById[seg.userId] ?? null
+                              : null;
                             return (
                               <span
                                 key={i}
                                 className={
-                                  seg.isYou
-                                    ? "font-semibold text-olivia-pink"
-                                    : "font-semibold text-status-chill"
+                                  custom
+                                    ? "font-semibold"
+                                    : seg.isYou
+                                      ? "font-semibold text-olivia-pink"
+                                      : "font-semibold text-status-chill"
                                 }
+                                style={custom ? { color: custom } : undefined}
                               >
                                 {seg.value}
                               </span>
