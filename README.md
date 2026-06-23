@@ -4,11 +4,17 @@ A live standup dashboard for a small team (5–10 people). The home screen is a
 grid of profile cards — one per member — showing each person's derived status
 (**Off** / **In Progress** / **Chill**), what they're working on, and what they
 finished today. Shared **Team Todolist** and **TBD** (blockers) sections live in
-the sidebar, and a **Report** button generates a copy-pasteable plain-text
-summary of all current tasks. Everything updates in realtime for everyone.
+the sidebar. A **Report** button generates a copy-pasteable plain-text summary
+of all current tasks, and a **Trends** button shows how many tasks each person
+completed today or over the last week. Everything updates in realtime for
+everyone.
 
 Built with Next.js (App Router) + TypeScript + Tailwind CSS + Supabase
 (Postgres, realtime, email + password auth).
+
+> New here and want to understand the internals? See
+> [ARCHITECTURE.md](ARCHITECTURE.md) for the layer map, realtime/optimistic
+> flow, and the testing approach.
 
 ## 1. Create the Supabase project
 
@@ -117,7 +123,9 @@ npm test
 ```
 
 Unit tests cover the pure logic: status derivation, the "done today" local-day
-filter, relative times, and the exact report format.
+filter, relative times, the exact report format, the realtime store reducer
+(including the guarded rollback), derived views, notification rules, the
+optimistic-update helper, the trends aggregation, and the standup-nudge rule.
 
 ## Deploying to production (Vercel + Supabase)
 
@@ -222,6 +230,21 @@ is in the background you'll be notified when a teammate finishes a task, adds a
 team todo, or **assigns a task to you**. Your own actions never notify you; the
 bell toggles mute once permission is granted.
 
+## Standup nudge
+
+If you open the dashboard and haven't lined anything up — you're not **Off** and
+have no in-progress task — a once-a-day banner asks "what are you working on
+today?" Type a task and it's added to your card in one step; "Not now" hushes it
+until the next workday. It's entirely browser-local (no email or cron), so it
+only shows to you.
+
+## Trends
+
+Click **Trends** in the header for a quick count of how many tasks each member
+completed — **Today** or **This week** — ranked, with a team total. It uses the
+same ranges as the Report, so the numbers line up with each card's "done today"
+list.
+
 ## How status works
 
 A member's badge is derived, never stored:
@@ -231,5 +254,6 @@ A member's badge is derived, never stored:
 2. Otherwise, any in-progress task → **In Progress** (green).
 3. Otherwise → **Chill** (blue).
 
-"Done today" is a filter on `completed_at` in your browser's timezone — it
-naturally resets at midnight, and yesterday's done tasks stay in the database.
+"Done today" is a filter on `completed_at` in your browser's timezone — the
+workday ends at 9pm local, when each card's "done today" list clears, and
+yesterday's done tasks stay in the database.

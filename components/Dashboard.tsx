@@ -22,6 +22,7 @@ import {
 import { avatarPublicUrl, type PreparedAvatar } from "@/lib/avatar";
 import { createClient } from "@/lib/supabase/client";
 import { buildReport, type ReportRange } from "@/lib/report";
+import { summarizeCompletions } from "@/lib/trends";
 import { resolveDrop, type DraggedItem } from "@/lib/dnd";
 import { jiraKeyFromUrl } from "@/lib/jira";
 import { isDoneToday, recentTaskCutoffIso, weekCutoffIso } from "@/lib/dates";
@@ -35,6 +36,25 @@ import {
 import { useNow } from "@/lib/useNow";
 import type { ActivityRow } from "@/lib/activity";
 import type { Profile, Task, TeamItem } from "@/lib/types";
+import {
+  reducer,
+  toMap,
+  type Action,
+  type ConnectionState,
+  type RowOf,
+  type TableKey,
+} from "@/lib/store";
+import {
+  filterTeamItems,
+  groupTasksByAssignee,
+  sortProfilesByUser,
+} from "@/lib/views";
+import {
+  classifyTaskChange,
+  classifyTaskSnapshot,
+  shouldNotifyTeamTodo,
+} from "@/lib/notify-rules";
+import { optimisticUpdate } from "@/lib/optimistic";
 import { ActivityLog } from "./ActivityLog";
 import { Header } from "./Header";
 import { JiraImportModal } from "./JiraImportModal";
@@ -42,70 +62,11 @@ import { ProfileEditModal } from "./ProfileEditModal";
 import { NotifPrompt } from "./NotifPrompt";
 import { ProfileCard } from "./ProfileCard";
 import { ReportModal } from "./ReportModal";
+import { StandupPrompt } from "./StandupPrompt";
+import { TrendsModal } from "./TrendsModal";
 import { TbdList } from "./TbdList";
 import { TeamTodoList } from "./TeamTodoList";
 import { Toast } from "./Toast";
-
-type RowOf = { profiles: Profile; tasks: Task; teamItems: TeamItem };
-type TableKey = keyof RowOf;
-type ConnectionState = "connecting" | "live" | "reconnecting";
-
-type Store = {
-  profiles: Record<string, Profile>;
-  tasks: Record<string, Task>;
-  teamItems: Record<string, TeamItem>;
-  connection: ConnectionState;
-};
-
-type Action =
-  | { type: "hydrate"; profiles: Profile[]; tasks: Task[]; teamItems: TeamItem[] }
-  | { type: "upsert"; table: TableKey; row: RowOf[TableKey] }
-  | { type: "remove"; table: TableKey; id: string }
-  | {
-      // Restore `row` only if the store still holds the exact optimistic row
-      // (`ifCurrentIs`) - a fresher realtime row must not be clobbered.
-      type: "rollback";
-      table: TableKey;
-      id: string;
-      ifCurrentIs: RowOf[TableKey] | undefined;
-      row: RowOf[TableKey];
-    }
-  | { type: "connection"; value: ConnectionState };
-
-function toMap<T extends { id: string }>(rows: T[]): Record<string, T> {
-  return Object.fromEntries(rows.map((r) => [r.id, r]));
-}
-
-function reducer(store: Store, action: Action): Store {
-  switch (action.type) {
-    case "hydrate":
-      return {
-        ...store,
-        profiles: toMap(action.profiles),
-        tasks: toMap(action.tasks),
-        teamItems: toMap(action.teamItems),
-      };
-    case "upsert":
-      return {
-        ...store,
-        [action.table]: { ...store[action.table], [action.row.id]: action.row },
-      };
-    case "remove": {
-      const next = { ...store[action.table] };
-      delete next[action.id];
-      return { ...store, [action.table]: next };
-    }
-    case "rollback": {
-      if (store[action.table][action.id] !== action.ifCurrentIs) return store;
-      return {
-        ...store,
-        [action.table]: { ...store[action.table], [action.id]: action.row },
-      };
-    }
-    case "connection":
-      return { ...store, connection: action.value };
-  }
-}
 
 export function Dashboard({
   initialProfiles,
@@ -129,6 +90,7 @@ export function Dashboard({
   }));
   const [activity, setActivity] = useState<ActivityRow[]>(initialActivity);
   const [reportOpen, setReportOpen] = useState(false);
+  const [trendsOpen, setTrendsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
   const [profileSaving, setProfileSaving] = useState(false);
   const [jiraOpen, setJiraOpen] = useState(false);
@@ -307,41 +269,21 @@ export function Dashboard({
           notified.delete(`task-assigned:${task.id}`);
         }
         if (!canNotify()) return;
-        // A teammate completed a task assigned to someone else.
-        if (
-          payload.eventType === "UPDATE" &&
-          prevStatus !== undefined &&
-          prevStatus !== "done" &&
-          task.status === "done" &&
-          task.assignee_id !== currentUserId
-        ) {
-          notifyTaskDone(task);
-        }
-        // Work landed on you (reassigned to you, or a todo converted onto
-        // you). The visibility gate means you didn't do it yourself.
-        if (task.assignee_id === currentUserId) {
-          const wasMine =
-            payload.eventType === "UPDATE" && prevAssignee === currentUserId;
-          // created_by only suppresses your OWN insert echo (quick-add or a
-          // todo you converted to yourself). On reassignment it must not
-          // suppress: a task you originally created can be assigned back to
-          // you by someone else, and that should notify.
-          const iCreatedIt =
-            payload.eventType === "INSERT" && task.created_by === currentUserId;
-          if (!wasMine && !iCreatedIt) {
-            notifyAssigned(task);
-          }
-        }
+        const kind = classifyTaskChange({
+          eventType: payload.eventType as "INSERT" | "UPDATE",
+          task,
+          prevStatus,
+          prevAssignee,
+          currentUserId,
+        });
+        if (kind === "done") notifyTaskDone(task);
+        else if (kind === "assigned") notifyAssigned(task);
         return;
       }
 
       if (table === "teamItems" && payload.eventType === "INSERT") {
         const item = row as TeamItem;
-        if (
-          item.type === "todo" &&
-          item.created_by !== currentUserId &&
-          canNotify()
-        ) {
+        if (shouldNotifyTeamTodo(item, currentUserId) && canNotify()) {
           notifyOnce(`team-todo:${item.id}`, "New team todo", item.content);
         }
       }
@@ -357,27 +299,18 @@ export function Dashboard({
         for (const task of tasks) {
           const prev = storeRef.current.tasks[task.id];
           const prevStatus = taskStatuses.get(task.id) ?? prev?.status;
-          if (
-            prevStatus !== "done" &&
-            task.status === "done" &&
-            task.assignee_id !== currentUserId
-          ) {
-            notifyTaskDone(task);
-          }
-          // Assigned to me while the socket was down. No INSERT echo here
-          // (rows come from a fetch), so no created_by suppression needed -
-          // you can't assign work to yourself while offline.
-          if (
-            task.assignee_id === currentUserId &&
-            prev?.assignee_id !== currentUserId
-          ) {
-            notifyAssigned(task);
-          }
+          const kind = classifyTaskSnapshot({
+            task,
+            prevStatus,
+            prevAssignee: prev?.assignee_id,
+            currentUserId,
+          });
+          if (kind === "done") notifyTaskDone(task);
+          else if (kind === "assigned") notifyAssigned(task);
         }
         for (const item of teamItems) {
           if (
-            item.type === "todo" &&
-            item.created_by !== currentUserId &&
+            shouldNotifyTeamTodo(item, currentUserId) &&
             !storeRef.current.teamItems[item.id]
           ) {
             notifyOnce(`team-todo:${item.id}`, "New team todo", item.content);
@@ -533,24 +466,22 @@ export function Dashboard({
       completed_at: nowIso,
       updated_at: nowIso,
     };
-    dispatch({ type: "upsert", table: "tasks", row: optimistic });
-    // .select() detects RLS-denied updates too: they "succeed" with 0 rows
-    // and no error, and produce no realtime event to correct the store.
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({ status: "done", completed_at: nowIso })
-      .eq("id", task.id)
-      .select("id");
-    if (error || !data?.length) {
-      dispatch({
-        type: "rollback",
-        table: "tasks",
-        id: task.id,
-        ifCurrentIs: optimistic,
-        row: task,
-      });
-      showToast("Couldn't save change");
-    }
+    await optimisticUpdate({
+      table: "tasks",
+      id: task.id,
+      optimistic,
+      original: task,
+      dispatch,
+      // .select() detects RLS-denied updates too: they "succeed" with 0 rows
+      // and no error, and produce no realtime event to correct the store.
+      run: () =>
+        supabase
+          .from("tasks")
+          .update({ status: "done", completed_at: nowIso })
+          .eq("id", task.id)
+          .select("id"),
+      onError: () => showToast("Couldn't save change"),
+    });
   }
 
   async function reopenTask(task: Task) {
@@ -560,43 +491,39 @@ export function Dashboard({
       completed_at: null,
       updated_at: new Date().toISOString(),
     };
-    dispatch({ type: "upsert", table: "tasks", row: optimistic });
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({ status: "inprogress", completed_at: null })
-      .eq("id", task.id)
-      .select("id");
-    if (error || !data?.length) {
-      dispatch({
-        type: "rollback",
-        table: "tasks",
-        id: task.id,
-        ifCurrentIs: optimistic,
-        row: task,
-      });
-      showToast("Couldn't save change");
-    }
+    await optimisticUpdate({
+      table: "tasks",
+      id: task.id,
+      optimistic,
+      original: task,
+      dispatch,
+      run: () =>
+        supabase
+          .from("tasks")
+          .update({ status: "inprogress", completed_at: null })
+          .eq("id", task.id)
+          .select("id"),
+      onError: () => showToast("Couldn't save change"),
+    });
   }
 
   async function toggleOff(profile: Profile) {
     const next = profile.manual_status === "off" ? null : ("off" as const);
     const optimistic: Profile = { ...profile, manual_status: next };
-    dispatch({ type: "upsert", table: "profiles", row: optimistic });
-    const { data, error } = await supabase
-      .from("profiles")
-      .update({ manual_status: next })
-      .eq("id", profile.id)
-      .select("id");
-    if (error || !data?.length) {
-      dispatch({
-        type: "rollback",
-        table: "profiles",
-        id: profile.id,
-        ifCurrentIs: optimistic,
-        row: profile,
-      });
-      showToast("Couldn't save change");
-    }
+    await optimisticUpdate({
+      table: "profiles",
+      id: profile.id,
+      optimistic,
+      original: profile,
+      dispatch,
+      run: () =>
+        supabase
+          .from("profiles")
+          .update({ manual_status: next })
+          .eq("id", profile.id)
+          .select("id"),
+      onError: () => showToast("Couldn't save change"),
+    });
   }
 
   // Upload first (fixed path, upsert), then write the row. If the row
@@ -688,22 +615,20 @@ export function Dashboard({
   // the TBD list and reappears in the Team Todolist (undone).
   async function resolveTbdToTodo(item: TeamItem) {
     const optimistic: TeamItem = { ...item, type: "todo", done: false };
-    dispatch({ type: "upsert", table: "teamItems", row: optimistic });
-    const { data, error } = await supabase
-      .from("team_items")
-      .update({ type: "todo", done: false })
-      .eq("id", item.id)
-      .select("id");
-    if (error || !data?.length) {
-      dispatch({
-        type: "rollback",
-        table: "teamItems",
-        id: item.id,
-        ifCurrentIs: optimistic,
-        row: item,
-      });
-      showToast("Couldn't move blocker to todolist");
-    }
+    await optimisticUpdate({
+      table: "teamItems",
+      id: item.id,
+      optimistic,
+      original: item,
+      dispatch,
+      run: () =>
+        supabase
+          .from("team_items")
+          .update({ type: "todo", done: false })
+          .eq("id", item.id)
+          .select("id"),
+      onError: () => showToast("Couldn't move blocker to todolist"),
+    });
   }
 
   async function dismissTeamItem(item: TeamItem) {
@@ -733,22 +658,20 @@ export function Dashboard({
       assignee_id: to,
       updated_at: new Date().toISOString(),
     };
-    dispatch({ type: "upsert", table: "tasks", row: optimistic });
-    const { data, error } = await supabase
-      .from("tasks")
-      .update({ assignee_id: to })
-      .eq("id", task.id)
-      .select("id");
-    if (error || !data?.length) {
-      dispatch({
-        type: "rollback",
-        table: "tasks",
-        id: task.id,
-        ifCurrentIs: optimistic,
-        row: task,
-      });
-      showToast("Couldn't reassign task");
-    }
+    await optimisticUpdate({
+      table: "tasks",
+      id: task.id,
+      optimistic,
+      original: task,
+      dispatch,
+      run: () =>
+        supabase
+          .from("tasks")
+          .update({ assignee_id: to })
+          .eq("id", task.id)
+          .select("id"),
+      onError: () => showToast("Couldn't reassign task"),
+    });
   }
 
   // Move a shared todo onto a member: insert a task, then drop the todo.
@@ -811,49 +734,41 @@ export function Dashboard({
 
   // --- Derived views. ---
 
-  // Your own card always leads; everyone else follows alphabetically.
   const profiles = useMemo(
-    () =>
-      Object.values(store.profiles).sort((a, b) => {
-        if (a.id === currentUserId) return -1;
-        if (b.id === currentUserId) return 1;
-        return a.display_name.localeCompare(b.display_name);
-      }),
+    () => sortProfilesByUser(Object.values(store.profiles), currentUserId),
     [store.profiles, currentUserId]
   );
 
-  const tasksByAssignee = useMemo(() => {
-    const map: Record<string, Task[]> = {};
-    for (const t of Object.values(store.tasks)) {
-      (map[t.assignee_id] ??= []).push(t);
-    }
-    return map;
-  }, [store.tasks]);
+  const tasksByAssignee = useMemo(
+    () => groupTasksByAssignee(Object.values(store.tasks)),
+    [store.tasks]
+  );
 
   const todoItems = useMemo(
-    () =>
-      Object.values(store.teamItems)
-        .filter((i) => i.type === "todo")
-        .sort((a, b) => a.created_at.localeCompare(b.created_at)),
+    () => filterTeamItems(Object.values(store.teamItems), "todo"),
     [store.teamItems]
   );
 
   const tbdItems = useMemo(
-    () =>
-      Object.values(store.teamItems)
-        .filter((i) => i.type === "tbd")
-        .sort((a, b) => b.created_at.localeCompare(a.created_at)),
+    () => filterTeamItems(Object.values(store.teamItems), "tbd"),
     [store.teamItems]
   );
 
-  // --- Report. ---
+  // --- Report & Trends. ---
   // The store only holds ~48h of tasks, so the week range fetches its own
-  // snapshot when selected (refreshed each time the modal opens).
+  // snapshot when selected. The report and trends modals share that fetch;
+  // it's cleared on close so the next open pulls a fresh snapshot.
   const [reportRange, setReportRange] = useState<ReportRange>("day");
+  const [trendsRange, setTrendsRange] = useState<ReportRange>("day");
   const [weekTasks, setWeekTasks] = useState<Task[] | null>(null);
 
+  // Either modal can ask for the wider week snapshot; fetch it once for both.
+  const weekNeeded =
+    (reportOpen && reportRange === "week") ||
+    (trendsOpen && trendsRange === "week");
+
   useEffect(() => {
-    if (!reportOpen || reportRange !== "week" || weekTasks) return;
+    if (!weekNeeded || weekTasks) return;
     let cancelled = false;
     (async () => {
       const { data, error } = await supabase
@@ -864,6 +779,7 @@ export function Dashboard({
       if (error || !data) {
         showToast("Couldn't load this week's tasks");
         setReportRange("day");
+        setTrendsRange("day");
         return;
       }
       setWeekTasks(data);
@@ -871,9 +787,23 @@ export function Dashboard({
     return () => {
       cancelled = true;
     };
-  }, [reportOpen, reportRange, weekTasks, supabase]);
+  }, [weekNeeded, weekTasks, supabase]);
 
   const reportLoading = reportRange === "week" && weekTasks === null;
+  const trendsLoading = trendsRange === "week" && weekTasks === null;
+
+  const trendsSummary = useMemo(() => {
+    if (!now) return { perPerson: [], total: 0 };
+    const source =
+      trendsRange === "week" ? weekTasks : Object.values(store.tasks);
+    if (!source) return { perPerson: [], total: 0 };
+    return summarizeCompletions(
+      source,
+      Object.values(store.profiles),
+      now,
+      trendsRange
+    );
+  }, [now, trendsRange, weekTasks, store.tasks, store.profiles]);
 
   // now is null until mounted; the modal opens only after a click, so the
   // report is always built by then.
@@ -953,6 +883,7 @@ export function Dashboard({
         nameColor={currentProfile?.name_color ?? null}
         onOpenProfile={() => setProfileOpen(true)}
         onOpenReport={() => setReportOpen(true)}
+        onOpenTrends={() => setTrendsOpen(true)}
         notifState={
           notifPerm === "ssr" || notifPerm === "unsupported"
             ? "hidden"
@@ -969,6 +900,15 @@ export function Dashboard({
           void requestNotifPermission();
           setNotifMuted(false);
         }}
+      />
+
+      <StandupPrompt
+        profile={currentProfile}
+        myInProgressTasks={(tasksByAssignee[currentUserId] ?? []).filter(
+          (t) => t.status === "inprogress"
+        )}
+        now={now}
+        onAdd={addTask}
       />
 
       <main className="mx-auto flex max-w-7xl flex-col gap-8 px-4 py-8 lg:flex-row">
@@ -1047,6 +987,17 @@ export function Dashboard({
         range={reportRange}
         onRangeChange={setReportRange}
         loading={reportLoading}
+      />
+      <TrendsModal
+        open={trendsOpen}
+        onClose={() => {
+          setTrendsOpen(false);
+          setWeekTasks(null); // refetch next open so the week view is fresh
+        }}
+        summary={trendsSummary}
+        range={trendsRange}
+        onRangeChange={setTrendsRange}
+        loading={trendsLoading}
       />
       {profileOpen && currentProfile && (
         <ProfileEditModal

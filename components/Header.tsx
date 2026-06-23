@@ -6,6 +6,7 @@ export function Header({
   nameColor,
   onOpenProfile,
   onOpenReport,
+  onOpenTrends,
   notifState,
   onToggleNotifications,
 }: {
@@ -14,6 +15,7 @@ export function Header({
   nameColor: string | null;
   onOpenProfile: () => void;
   onOpenReport: () => void;
+  onOpenTrends: () => void;
   notifState: "on" | "off" | "hidden";
   onToggleNotifications: () => void;
 }) {
@@ -41,6 +43,12 @@ export function Header({
               {notifState === "on" ? "🔔" : "🔕"}
             </button>
           )}
+          <button
+            onClick={onOpenTrends}
+            className="rounded-lg border border-olivia-border px-3 py-1.5 text-sm font-medium text-olivia-muted hover:bg-olivia-raised hover:text-olivia-cream"
+          >
+            Trends
+          </button>
           <button
             onClick={onOpenReport}
             className="rounded-lg bg-olivia-pink px-3 py-1.5 text-sm font-medium text-olivia-bg hover:bg-olivia-pink-deep"
