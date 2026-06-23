@@ -6,8 +6,8 @@ import { ItemTitle } from "./ItemTitle";
 import { LinkIcon } from "./LinkIcon";
 import { QuickAddTask } from "./QuickAddTask";
 
-// Blockers section: pink-tinted outline + flag marker so it stands apart
-// from both the member cards and the Team Todolist.
+// Blockers section: neutral outline (matching the Team Todolist) + flag
+// marker so it stands apart from the member cards.
 export function TbdList({
   items,
   profiles,
@@ -24,7 +24,7 @@ export function TbdList({
   onDismiss: (item: TeamItem) => void;
 }) {
   return (
-    <section className="rounded-2xl border border-olivia-pink/40 bg-olivia-pink/5 p-5">
+    <section className="rounded-2xl border border-olivia-border bg-olivia-bg/40 p-5">
       <h2 className="mb-1 flex items-center gap-2 text-xs font-semibold uppercase tracking-widest text-olivia-pink">
         <span aria-hidden>⚑</span>
         TBD — Blockers
