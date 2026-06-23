@@ -1,29 +1,9 @@
 "use client";
 
 import { useEffect, useMemo, useRef } from "react";
-import {
-  renderActivity,
-  type ActivityRow,
-  type ActivityType,
-} from "@/lib/activity";
+import { renderActivity, type ActivityRow } from "@/lib/activity";
 import { relativeTime } from "@/lib/dates";
 import type { Profile } from "@/lib/types";
-
-// Colored chip per action type — the "status" highlight.
-const CHIP: Record<ActivityType, { label: string; cls: string }> = {
-  task_added: { label: "Task", cls: "bg-status-chill/15 text-status-chill" },
-  task_assigned: { label: "Assigned", cls: "bg-olivia-pink/15 text-olivia-pink" },
-  task_done: { label: "Done", cls: "bg-status-active/15 text-status-active" },
-  task_reopened: { label: "Reopened", cls: "bg-status-warn/15 text-status-warn" },
-  status_off: { label: "Off", cls: "bg-olivia-muted/20 text-olivia-muted" },
-  status_back: { label: "Back", cls: "bg-status-active/15 text-status-active" },
-  todo_added: { label: "Todo", cls: "bg-status-chill/15 text-status-chill" },
-  todo_checked: { label: "Todo done", cls: "bg-status-active/15 text-status-active" },
-  todo_deleted: { label: "Todo removed", cls: "bg-olivia-muted/20 text-olivia-muted" },
-  tbd_raised: { label: "Blocker", cls: "bg-status-warn/15 text-status-warn" },
-  tbd_resolved: { label: "Resolved", cls: "bg-status-active/15 text-status-active" },
-  tbd_dismissed: { label: "Dismissed", cls: "bg-olivia-muted/20 text-olivia-muted" },
-};
 
 function initials(name: string): string {
   return (
@@ -40,7 +20,7 @@ function initials(name: string): string {
 // run oldest → newest (newest at the bottom, like a chat) inside a fixed-
 // height scroll area that auto-scrolls to the bottom when a new log arrives.
 // Each entry is the actor's avatar + a message bubble; member names are
-// highlighted (you = pink, others = cyan) and a colored chip marks the action.
+// highlighted (you = pink, others = cyan).
 export function ActivityLog({
   activity,
   currentUserId,
@@ -103,7 +83,6 @@ export function ActivityLog({
         >
           {ordered.map((entry) => {
             const actor = entry.actor_id ? profiles[entry.actor_id] : undefined;
-            const chip = CHIP[entry.type];
             return (
               <li key={entry.id} className="flex gap-2.5">
                 {actor?.avatar_url ? (
@@ -125,11 +104,6 @@ export function ActivityLog({
                 <div className="min-w-0 flex-1">
                   <div className="inline-block max-w-full rounded-2xl rounded-tl-sm border border-olivia-border bg-olivia-raised px-3 py-2">
                     <p className="text-sm leading-snug text-olivia-muted">
-                      <span
-                        className={`mr-1.5 inline-block rounded-full px-1.5 py-0.5 text-[10px] font-semibold uppercase tracking-wide ${chip.cls}`}
-                      >
-                        {chip.label}
-                      </span>
                       {renderActivity(entry, currentUserId, namesById).map(
                         (seg, i) => {
                           if (seg.kind === "name") {
