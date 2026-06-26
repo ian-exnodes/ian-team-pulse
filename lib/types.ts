@@ -182,3 +182,13 @@ export interface Database {
 export type Profile = Database["public"]["Tables"]["profiles"]["Row"];
 export type Task = Database["public"]["Tables"]["tasks"]["Row"];
 export type TeamItem = Database["public"]["Tables"]["team_items"]["Row"];
+
+export interface Document {
+  id: string;
+  name: string;
+  storage_path: string;
+  mime_type: string;
+  size_bytes: number;
+  uploaded_by: string;
+  created_at: string;
+}
