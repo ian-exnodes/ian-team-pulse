@@ -68,6 +68,267 @@ The goal is not to avoid source code forever. The goal is to avoid reading sourc
 
 ---
 
+## Serena Memory & Checkpoint Setup
+
+This repository should maintain a lightweight `.serena/` knowledge layer. These files are not magic; create and update them with normal file operations (`mkdir`, `touch`, `Write`, `Edit`) or Serena memory tools when available.
+
+### Required Serena Structure
+
+Ensure this structure exists or create missing parts before the first significant session:
+
+```text
+.serena/
+├── memories/
+│   ├── INDEX.md
+│   ├── core.md
+│   ├── tech_stack.md
+│   ├── conventions.md
+│   ├── architecture.md
+│   ├── api.md
+│   ├── decisions.md
+│   ├── suggested_commands.md
+│   ├── task_completion.md
+│   └── memory_maintenance.md
+├── checkpoint/
+│   ├── active/
+│   │   └── <YYYY-MM-DD_HH-mm>_<author-or-agent>_<brief-topic>.md
+│   ├── completed/
+│   └── archived/
+├── decisions/
+│   └── ADR-001-<topic>.md
+├── project.yml
+└── .gitignore
+```
+
+If `.serena/memories/` already contains some files, do not overwrite useful content. Add the missing files only.
+
+### Git Policy For `.serena/`
+
+Commit shared knowledge, but never commit local generated cache.
+
+Commit:
+
+```text
+.serena/memories/
+.serena/checkpoint/active/      # only handoff-worthy active work
+.serena/checkpoint/completed/   # useful historical handoffs
+.serena/decisions/
+.serena/project.yml
+.serena/.gitignore
+```
+
+Ignore:
+
+```text
+.serena/cache/
+.serena/**/*.pkl
+.serena/project.local.yml
+```
+
+Recommended `.serena/.gitignore`:
+
+```gitignore
+cache/
+**/*.pkl
+project.local.yml
+```
+
+### How To Create Missing Files
+
+Use normal shell/file operations when the files are missing:
+
+```bash
+mkdir -p .serena/memories .serena/checkpoint/active .serena/checkpoint/completed .serena/checkpoint/archived .serena/decisions
+touch .serena/memories/INDEX.md
+touch .serena/memories/architecture.md
+touch .serena/memories/api.md
+touch .serena/memories/decisions.md
+cat > .serena/.gitignore <<'EOF'
+cache/
+**/*.pkl
+project.local.yml
+EOF
+```
+
+Then populate the files with the templates below. If Serena memory tools such as `write_memory` are available, prefer them for memory content; otherwise use normal file writes.
+
+### `.serena/memories/INDEX.md` Template
+
+```markdown
+# Serena Memory Index
+
+Use this file as the routing table for project memories. Read this file before opening individual memory files.
+
+## core.md
+
+Project overview and high-level purpose.
+
+Read when:
+- Starting a new session
+- Onboarding to the repository
+- Needing project boundaries or business context
+
+## tech_stack.md
+
+Frameworks, libraries, runtime assumptions, and tooling.
+
+Read when:
+- Adding or changing features
+- Choosing implementation patterns
+- Updating dependencies or build tooling
+
+## conventions.md
+
+Coding style, naming, folder conventions, component patterns, and review preferences.
+
+Read when:
+- Before editing code
+- Before creating new files
+- Before refactoring existing code
+
+## architecture.md
+
+Important module boundaries, data flow, routing structure, state ownership, and shared abstractions.
+
+Read when:
+- Working on medium+ tasks
+- Changing cross-file behavior
+- Touching shared components, hooks, context, services, or routing
+
+## api.md
+
+API client conventions, endpoint patterns, auth headers, interceptors, error handling, and request/response shapes.
+
+Read when:
+- Touching API calls
+- Adding services
+- Changing auth/session behavior
+- Handling server errors
+
+## suggested_commands.md
+
+Known working commands for install, dev server, typecheck, lint, tests, build, and formatting.
+
+Read when:
+- Planning verification
+- Running checks
+- Debugging local tooling
+
+## task_completion.md
+
+Definition of Done for this repository.
+
+Read when:
+- Finishing a task
+- Reporting verification
+- Deciding whether checkpoint/memory updates are needed
+
+## memory_maintenance.md
+
+Rules for keeping memories small, accurate, and useful.
+
+Read when:
+- Creating or updating memory files
+- Finishing a significant session
+- Discovering durable project knowledge
+```
+
+### `.serena/memories/architecture.md` Template
+
+```markdown
+# Architecture Memory
+
+Keep this file focused on durable architecture facts. Do not paste large source snippets.
+
+## Project shape
+
+- App type: <React frontend / React Native app / Node service / etc.>
+- Main source folder: `<path>`
+- Route entry points: `<path>`
+- Shared UI location: `<path>`
+- API/service layer: `<path>`
+- State management: `<context/hooks/store/etc.>`
+
+## Module boundaries
+
+- `<area>` owns `<responsibility>`
+- `<area>` should not import from `<area>` unless `<reason>`
+
+## Data flow
+
+- `<flow name>`: `<source>` → `<transform/state>` → `<UI/API>`
+
+## Shared abstractions
+
+- `<component/hook/helper>` is used for `<purpose>`
+- Prefer `<existing abstraction>` before creating a new one
+
+## Known risks
+
+- `<risk>`
+```
+
+### `.serena/memories/api.md` Template
+
+```markdown
+# API Memory
+
+Keep this file focused on durable API/client facts. Do not paste secrets.
+
+## Client setup
+
+- HTTP client: `<axios/fetch/tanstack/etc.>`
+- Base client path: `<path>`
+- Base URL source: `<env/config>`
+- Auth mechanism: `<JWT/session/cookie/etc.>`
+
+## Conventions
+
+- Request naming: `<convention>`
+- Response shape: `<convention>`
+- Error handling: `<convention>`
+- Loading/empty/error UI pattern: `<convention>`
+
+## Important services
+
+- `<service file>` handles `<domain>`
+
+## Auth/session flow
+
+- `<login/refresh/logout flow>`
+
+## Known risks
+
+- `<risk>`
+```
+
+### Memory Creation Rules
+
+Create or update memory when the session discovers durable knowledge that will likely help future tasks, such as:
+
+- architectural decisions
+- module boundaries
+- important data flows
+- API conventions
+- reusable component conventions
+- verification commands that actually work
+- known risks or traps
+
+Do not create memory for one-off details, temporary debugging notes, guesses, secrets, credentials, or large pasted code.
+
+### Memory Update Protocol
+
+At the end of a significant session:
+
+1. Update the relevant memory file only if durable project knowledge changed.
+2. Keep each memory concise and skimmable.
+3. Prefer bullets over paragraphs.
+4. Add links/paths to source files instead of copying code.
+5. If a memory becomes stale, correct it immediately or add a warning.
+6. Update `INDEX.md` whenever a new memory file is added.
+
+---
+
 ## Skill Loading Policy
 
 Local skills are Markdown files on disk. Read them with `Read`; do **not** invoke them through a generic `Skill` tool unless the harness explicitly registers that skill.
@@ -326,22 +587,57 @@ If a check cannot run, say why and what risk remains.
 
 Write a checkpoint at the end of every significant session. Use Serena's checkpoint folder as the shared, cross-agent location.
 
-Primary path:
+### Checkpoint Directory Model
+
+Use three lifecycle folders:
 
 ```text
-.serena/checkpoint/<agent-name>-<YYYY-MM-DD>-<brief-topic>.md
+.serena/checkpoint/active/      # current or interrupted work; read first
+.serena/checkpoint/completed/   # completed handoffs worth keeping
+.serena/checkpoint/archived/    # old checkpoints kept for history only
+```
+
+Primary path pattern:
+
+```text
+.serena/checkpoint/active/<YYYY-MM-DD_HH-mm>_<author-or-agent>_<brief-topic>.md
+```
+
+Examples:
+
+```text
+.serena/checkpoint/active/2026-06-26_09-15_ian_auth.md
+.serena/checkpoint/active/2026-06-26_13-40_claude_payment.md
+.serena/checkpoint/completed/2026-06-26_17-20_mary_profile.md
 ```
 
 Fallback path if `.serena/` cannot be created:
 
 ```text
-.claude/checkpoints/<YYYY-MM-DD>-<brief-topic>.md
+.claude/checkpoints/<YYYY-MM-DD_HH-mm>_<author-or-agent>_<brief-topic>.md
 ```
 
-Template:
+### Timestamp Rule
+
+Always include local date and time in checkpoint filenames. This prevents collisions when multiple team members or agents work on the same day. Use 24-hour time. Prefer the user's/project's local timezone when known.
+
+Filename format:
+
+```text
+YYYY-MM-DD_HH-mm_author_topic.md
+```
+
+### Template
 
 ```markdown
-# Checkpoint: <agent-name> — <date> — <topic>
+# Checkpoint: <author-or-agent> — <YYYY-MM-DD HH:mm TZ> — <topic>
+
+Date: <YYYY-MM-DD>
+Time: <HH:mm TZ>
+Author/Agent: <name>
+Branch: <branch-name or unknown>
+Commit: <short-sha or uncommitted>
+Topic: <brief topic>
 
 ## What was done
 
@@ -370,12 +666,60 @@ Template:
 
 Rules:
 
--   Create `.serena/checkpoint/` on first use if it does not exist.
+-   Create checkpoint folders on first use: `mkdir -p .serena/checkpoint/active .serena/checkpoint/completed .serena/checkpoint/archived`.
 -   Write before ending a significant session.
 -   If interrupted or failed, still write the checkpoint and mark the state honestly.
--   Keep it under 50 lines.
--   For multiple sessions on the same day/topic, append or create a new topic-specific file; do not overwrite useful history.
+-   Keep it under 60 lines.
+-   Do not overwrite checkpoints. Create a timestamped file instead.
+-   Move active checkpoints to `completed/` after the task is merged, abandoned, or superseded.
+-   Periodically archive stale completed checkpoints to `archived/`.
 -   Mention unavailable plugins/skills only when relevant to the session outcome.
+
+### Checkpoint Creation Example
+
+For a completed auth session on 2026-06-26 at 09:15 local time:
+
+```bash
+mkdir -p .serena/checkpoint/active .serena/checkpoint/completed .serena/checkpoint/archived
+cat > .serena/checkpoint/active/2026-06-26_09-15_claude_auth.md <<'EOF'
+# Checkpoint: claude — 2026-06-26 09:15 +07 — auth
+
+Date: 2026-06-26
+Time: 09:15 +07
+Author/Agent: claude
+Branch: feature/apple-login
+Commit: uncommitted
+Topic: Apple Sign In
+
+## What was done
+
+-   Implemented Apple Sign In flow
+-   Updated auth service integration
+
+## Files changed
+
+-   src/pages/Login.tsx
+-   src/context/AuthContext.tsx
+-   src/service/auth.service.ts
+
+## Current state
+
+-   working
+
+## Verified
+
+-   npx tsc --noEmit
+-   npx eslint src/pages/Login.tsx src/context/AuthContext.tsx src/service/auth.service.ts
+
+## Next steps
+
+-   Test on a real iOS device
+
+## Blockers / Risks
+
+-   Apple Sign In still requires real-device verification
+EOF
+```
 
 ---
 
