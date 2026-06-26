@@ -28,8 +28,23 @@ create policy "anyone can delete documents" on public.documents
 alter publication supabase_realtime add table public.documents;
 
 -- Private storage bucket: reads require signed URLs.
-insert into storage.buckets (id, name, public)
-values ('shared-documents', 'shared-documents', false)
+insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
+values (
+  'shared-documents',
+  'shared-documents',
+  false,
+  10485760,
+  array[
+    'application/pdf',
+    'application/msword',
+    'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+    'application/vnd.ms-excel',
+    'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+    'application/vnd.ms-powerpoint',
+    'application/vnd.openxmlformats-officedocument.presentationml.presentation',
+    'text/markdown'
+  ]
+)
 on conflict (id) do nothing;
 
 create policy "authenticated can upload documents" on storage.objects
