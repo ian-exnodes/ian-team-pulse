@@ -4,19 +4,14 @@
 
 export const JIRA_SCOPES = "read:jira-work read:me offline_access";
 
-// Search is restricted to these workflow statuses. NOTE: these must match the
-// status names in your Jira project exactly - adjust if your board differs.
-export const SEARCH_STATUSES = ["To Do", "Ready", "Blocked", "In Progress"];
-
-// Builds the JQL for the import search: always restricted to SEARCH_STATUSES,
+// Builds the JQL for the import search: searches across every status,
 // optionally narrowed by a keyword. The keyword matches the summary (title
 // words) AND the issue key, so you can also search by key ("CPD-3281") or by
 // bare number ("3281", tried against each accessible project). Non-existent
 // keys in JQL return no rows rather than erroring, so the OR is safe.
 export function buildSearchJql(keyword: string, projectKeys: string[] = []): string {
-  const statusClause = `status in (${SEARCH_STATUSES.map((s) => `"${s}"`).join(", ")})`;
   const kw = keyword.trim();
-  if (!kw) return `${statusClause} ORDER BY updated DESC`;
+  if (!kw) return `ORDER BY updated DESC`;
   const esc = (s: string) => s.replace(/[\\"]/g, "\\$&"); // JQL string literal
 
   const matchers = [`summary ~ "${esc(kw)}*"`];
@@ -27,7 +22,7 @@ export function buildSearchJql(keyword: string, projectKeys: string[] = []): str
     matchers.push(`key in (${keys})`);
   }
 
-  return `${statusClause} AND (${matchers.join(" OR ")}) ORDER BY updated DESC`;
+  return `${matchers.join(" OR ")} ORDER BY updated DESC`;
 }
 
 export interface JiraIssue {
