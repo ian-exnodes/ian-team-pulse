@@ -98,15 +98,13 @@ describe("mapIssue", () => {
 });
 
 describe("buildSearchJql", () => {
-  it("restricts to the four workflow statuses with no keyword", () => {
-    expect(buildSearchJql("")).toBe(
-      'status in ("To Do", "Ready", "Blocked", "In Progress") ORDER BY updated DESC'
-    );
+  it("searches every status, newest first, with no keyword", () => {
+    expect(buildSearchJql("")).toBe("ORDER BY updated DESC");
   });
 
   it("adds a summary prefix match for a word keyword", () => {
     expect(buildSearchJql("  login  ")).toBe(
-      'status in ("To Do", "Ready", "Blocked", "In Progress") AND (summary ~ "login*") ORDER BY updated DESC'
+      'summary ~ "login*" ORDER BY updated DESC'
     );
   });
 
@@ -122,9 +120,7 @@ describe("buildSearchJql", () => {
   });
 
   it("a bare number with no project keys stays a summary search", () => {
-    expect(buildSearchJql("3281")).toBe(
-      'status in ("To Do", "Ready", "Blocked", "In Progress") AND (summary ~ "3281*") ORDER BY updated DESC'
-    );
+    expect(buildSearchJql("3281")).toBe('summary ~ "3281*" ORDER BY updated DESC');
   });
 
   it("escapes quotes and backslashes in the keyword", () => {

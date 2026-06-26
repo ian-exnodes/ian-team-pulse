@@ -166,7 +166,7 @@ export function JiraImportModal({
               className="mb-1 w-full rounded-lg border border-olivia-border bg-olivia-raised px-3 py-2 text-sm text-olivia-cream outline-none placeholder:text-olivia-muted/70 focus:border-olivia-pink"
             />
             <p className="mb-3 text-xs text-olivia-muted">
-              To Do · Ready · Blocked · In Progress
+              Searches all statuses · newest first
             </p>
 
             <div className="olivia-scroll -mr-3 flex-1 overflow-y-auto pr-3">
@@ -178,8 +178,7 @@ export function JiraImportModal({
                 <p className="text-sm text-olivia-muted">Searching…</p>
               ) : searchFailed ? (
                 <p className="text-sm text-red-300">
-                  Couldn&apos;t search — your Jira may use different status
-                  names than To Do / Ready / Blocked / In Progress.
+                  Couldn&apos;t search Jira. Try again in a moment.
                 </p>
               ) : issues.length === 0 ? (
                 <p className="text-sm text-olivia-muted">No matching issues.</p>

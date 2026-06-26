@@ -45,5 +45,7 @@ next-env.d.ts
 *.swp
 *.swo
 
-# Serena MCP local cache
-.serena/
+# Serena MCP local cache (memories/checkpoints/decisions are committed)
+.serena/cache/
+.serena/project.local.yml
+.serena/**/*.pkl
