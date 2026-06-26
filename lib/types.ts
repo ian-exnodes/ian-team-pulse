@@ -171,6 +171,36 @@ export interface Database {
         };
         Relationships: [];
       };
+      documents: {
+        Row: {
+          id: string;
+          name: string;
+          storage_path: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          name: string;
+          storage_path: string;
+          mime_type: string;
+          size_bytes: number;
+          uploaded_by: string;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          name?: string;
+          storage_path?: string;
+          mime_type?: string;
+          size_bytes?: number;
+          uploaded_by?: string;
+          created_at?: string;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

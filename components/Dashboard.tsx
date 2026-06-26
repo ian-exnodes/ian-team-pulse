@@ -35,7 +35,7 @@ import {
 } from "@/lib/notifications";
 import { useNow } from "@/lib/useNow";
 import type { ActivityRow } from "@/lib/activity";
-import type { Profile, Task, TeamItem } from "@/lib/types";
+import type { Profile, Task, TeamItem, Document } from "@/lib/types";
 import {
   reducer,
   toMap,
@@ -67,18 +67,21 @@ import { TrendsModal } from "./TrendsModal";
 import { TbdList } from "./TbdList";
 import { TeamTodoList } from "./TeamTodoList";
 import { Toast } from "./Toast";
+import { SharedDocuments } from "./SharedDocuments";
 
 export function Dashboard({
   initialProfiles,
   initialTasks,
   initialTeamItems,
   initialActivity,
+  initialDocuments,
   currentUserId,
 }: {
   initialProfiles: Profile[];
   initialTasks: Task[];
   initialTeamItems: TeamItem[];
   initialActivity: ActivityRow[];
+  initialDocuments: Document[];
   currentUserId: string;
 }) {
   const supabase = useMemo(() => createClient(), []);
@@ -89,6 +92,7 @@ export function Dashboard({
     connection: "connecting" as ConnectionState,
   }));
   const [activity, setActivity] = useState<ActivityRow[]>(initialActivity);
+  const [documents, setDocuments] = useState<Document[]>(initialDocuments);
   const [reportOpen, setReportOpen] = useState(false);
   const [trendsOpen, setTrendsOpen] = useState(false);
   const [profileOpen, setProfileOpen] = useState(false);
@@ -181,7 +185,7 @@ export function Dashboard({
       buffer = []; // safe: discarded events predate the new fetch's snapshot
       try {
         const cutoff = recentTaskCutoffIso();
-        const [p, t, i, a] = await Promise.all([
+        const [p, t, i, a, docs] = await Promise.all([
           supabase.from("profiles").select("*"),
           supabase
             .from("tasks")
@@ -193,6 +197,10 @@ export function Dashboard({
             .select("*")
             .order("created_at", { ascending: false })
             .limit(50),
+          supabase
+            .from("documents")
+            .select("*")
+            .order("created_at", { ascending: false }),
         ]);
         if (p.error || t.error || i.error) {
           throw p.error ?? t.error ?? i.error;
@@ -206,6 +214,7 @@ export function Dashboard({
           teamItems: i.data,
         });
         if (a.data) setActivity(a.data as ActivityRow[]);
+        if (docs.data) setDocuments(docs.data as Document[]);
         dispatch({ type: "connection", value: "live" });
       } catch {
         // Keep current state; events still apply and the next rejoin retries.
@@ -362,6 +371,25 @@ export function Dashboard({
               ? prev
               : [row, ...prev].slice(0, 100)
           );
+        }
+      )
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "documents" },
+        (payload) => {
+          if (payload.eventType === "DELETE") {
+            const id = (payload.old as { id?: string }).id;
+            if (id) setDocuments((prev) => prev.filter((d) => d.id !== id));
+          } else {
+            const row = payload.new as Document;
+            setDocuments((prev) =>
+              prev.some((d) => d.id === row.id)
+                ? prev.map((d) => (d.id === row.id ? row : d))
+                : [row, ...prev].sort((a, b) =>
+                    b.created_at.localeCompare(a.created_at)
+                  )
+            );
+          }
         }
       )
       .subscribe((status) => {
@@ -648,6 +676,63 @@ export function Dashboard({
       });
       showToast("Couldn't dismiss item");
     }
+  }
+
+  async function uploadDocument(file: File) {
+    const path = `${currentUserId}/${crypto.randomUUID()}-${file.name}`;
+    const { error: storageError } = await supabase.storage
+      .from("shared-documents")
+      .upload(path, file, { contentType: file.type });
+    if (storageError) {
+      showToast("Upload failed — try again");
+      return;
+    }
+    const { error: dbError } = await supabase.from("documents").insert({
+      name: file.name,
+      storage_path: path,
+      mime_type: file.type,
+      size_bytes: file.size,
+      uploaded_by: currentUserId,
+    });
+    if (dbError) {
+      await supabase.storage.from("shared-documents").remove([path]);
+      showToast("Upload failed — try again");
+    }
+  }
+
+  async function deleteDocument(doc: Document) {
+    setDocuments((prev) => prev.filter((d) => d.id !== doc.id));
+    const { error: storageError } = await supabase.storage
+      .from("shared-documents")
+      .remove([doc.storage_path]);
+    if (storageError) {
+      setDocuments((prev) =>
+        [...prev, doc].sort((a, b) => b.created_at.localeCompare(a.created_at))
+      );
+      showToast("Couldn't delete — try again");
+      return;
+    }
+    const { error: dbError } = await supabase
+      .from("documents")
+      .delete()
+      .eq("id", doc.id);
+    if (dbError) {
+      setDocuments((prev) =>
+        [...prev, doc].sort((a, b) => b.created_at.localeCompare(a.created_at))
+      );
+      showToast("Couldn't delete — try again");
+    }
+  }
+
+  async function downloadDocument(doc: Document) {
+    const { data, error } = await supabase.storage
+      .from("shared-documents")
+      .createSignedUrl(doc.storage_path, 3600);
+    if (error || !data) {
+      showToast("Couldn't generate download link — try again");
+      return;
+    }
+    window.open(data.signedUrl, "_blank", "noopener,noreferrer");
   }
 
   // --- Drag-to-assign mutations. ---
@@ -966,6 +1051,13 @@ export function Dashboard({
             onAdd={(content, link) => addTeamItem("tbd", content, link)}
             onToggle={resolveTbdToTodo}
             onDismiss={dismissTeamItem}
+          />
+          <SharedDocuments
+            documents={documents}
+            profiles={store.profiles}
+            onUpload={uploadDocument}
+            onDelete={deleteDocument}
+            onDownload={downloadDocument}
           />
         </aside>
       </main>
